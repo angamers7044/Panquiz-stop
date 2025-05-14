@@ -1,4 +1,4 @@
-# Progetto: Java Ciao
+# Progetto: Panquiz Stop
 
 Questo progetto è un client per connettersi a un gioco in tempo reale utilizzando WebSocket e SignalR. Consente di partecipare a una partita con un PIN e un nome giocatore, oltre a supportare l'aggiunta di bot per simulare più giocatori.
 
@@ -25,7 +25,7 @@ Questo progetto è un client per connettersi a un gioco in tempo reale utilizzan
 1. Clona il repository:
    ```bash
    git clone <repository-url>
-   cd java-ciao
+   cd Panquiz-stop
 2. Installa le dipendenze:
    ```bash
    npm install
