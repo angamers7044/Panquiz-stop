@@ -24,7 +24,7 @@ Questo progetto è un client per connettersi a un gioco in tempo reale utilizzan
 ## **Istruzioni per l'uso**
 1. Clona il repository:
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/angamers7044/Panquiz-stop
    cd Panquiz-stop
 2. Installa le dipendenze:
    ```bash
