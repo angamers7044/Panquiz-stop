@@ -1,59 +1,114 @@
-const terminal = document.getElementById('terminal');
-const input = document.getElementById('input');
+const promptText = document.getElementById('promptText');
+const inputBox = document.getElementById('inputBox');
+const submitBtn = document.getElementById('submitBtn');
+const output = document.getElementById('output');
 
-let history = [];
-let historyIndex = -1;
-let promptResolve = null;
-
-function print(text) {
-  terminal.innerHTML += text + '<br>';
-  terminal.scrollTop = terminal.scrollHeight;
+function showPrompt(text, buttonText = "Avanti") {
+  promptText.textContent = text;
+  submitBtn.textContent = buttonText;
+  inputBox.value = '';
+  inputBox.focus();
 }
 
-function prompt(question) {
-  print(question);
-  input.value = '';
-  input.focus();
+function showOutput(text, color = "#b2ffb2") {
+  output.textContent = text;
+  output.style.color = color;
+}
+
+async function validateMatchPin(pin) {
+    const url = "https://play.panquiz.com/api/v1/player/pin";
+    const headers = {
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "Accept": "*/*"
+    };
+    // Note: the colon is NOT encoded
+    const body = `pinCode:=${encodeURIComponent(pin)}`;
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers,
+            body,
+            credentials: "include",
+            mode: "cors"
+        });
+        const data = await response.json();
+
+        if (data.playId) {
+            return data.playId;
+        } else {
+            showOutput("PIN non valido. Riprova.", "#ffb2b2");
+            return null;
+        }
+    } catch (error) {
+        showOutput("Errore di rete.", "#ffb2b2");
+        return null;
+    }
+}
+function ask(question, buttonText = "Avanti") {
   return new Promise(resolve => {
-    promptResolve = resolve;
+    showPrompt(question, buttonText);
+    showOutput("");
+    submitBtn.onclick = () => {
+      resolve(inputBox.value.trim());
+    };
+    inputBox.onkeydown = (e) => {
+      if (e.key === "Enter") {
+        submitBtn.click();
+      }
+    };
   });
 }
 
-input.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && promptResolve) {
-    const value = input.value;
-    print('> ' + value);
-    history.push(value);
-    historyIndex = history.length;
-    input.value = '';
-    const resolve = promptResolve;
-    promptResolve = null;
-    resolve(value);
-  } else if (e.key === 'ArrowUp') {
-    if (history.length && historyIndex > 0) {
-      historyIndex--;
-      input.value = history[historyIndex];
-      setTimeout(() => input.setSelectionRange(input.value.length, input.value.length), 0);
-    }
-    e.preventDefault();
-  } else if (e.key === 'ArrowDown') {
-    if (history.length && historyIndex < history.length - 1) {
-      historyIndex++;
-      input.value = history[historyIndex];
-      setTimeout(() => input.setSelectionRange(input.value.length, input.value.length), 0);
-    } else if (historyIndex === history.length - 1) {
-      historyIndex++;
-      input.value = '';
-    }
-    e.preventDefault();
-  }
-});
+async function connectToPanquiz(playId, playerName) {
+  showPrompt("Connessione al gioco in corso...", "Attendi");
+  inputBox.style.display = "none";
+  submitBtn.style.display = "none";
 
-// Example flow (replace with your logic)
-(async function() {
-  print('Welcome to Panquiz Terminal!');
-  const pin = await prompt('Inserisci il PIN della partita:');
-  const name = await prompt('Inserisci il tuo nome giocatore:');
-  print(`Hai inserito PIN: ${pin}, Nome: ${name}`);
-  // Add more prompts or logic here
+  const connection = new signalR.HubConnectionBuilder()
+    .withUrl("https://play.panquiz.com/api/v1/playHub", {
+      skipNegotiation: false,
+      transport: signalR.HttpTransportType.WebSockets
+    })
+    .configureLogging(signalR.LogLevel.Information)
+    .build();
+
+  connection.on("ShowQuestion", (questionData) => {
+    showOutput(
+      `Domanda: ${questionData.question}\nRisposte: ${questionData.answers.join(', ')}\nRisposta corretta: ${questionData.rightAnswer}`
+    );
+    // Auto-answer for demo
+    connection.invoke("AnswerQuestion", playId, questionData.rightAnswer);
+  });
+
+  connection.on("PlayerDisconnected", (disconnected) => {
+    if (disconnected === true) {
+      showOutput("Disconnesso dalla partita.", "#ffb2b2");
+      connection.stop();
+    }
+  });
+
+  connection.onclose(() => {
+    showOutput("Connessione chiusa.", "#ffb2b2");
+  });
+
+  try {
+    await connection.start();
+    showOutput("Connesso! Invio richiesta di join...");
+    await connection.invoke("PlayerJoined", playId, playerName);
+    showPrompt("Hai effettuato l'accesso alla partita!", "In attesa...");
+  } catch (err) {
+    showOutput("Errore di connessione: " + err, "#ffb2b2");
+  }
+}
+
+(async function main() {
+  showPrompt("Inserisci il PIN della partita:");
+  let playId = null;
+  while (!playId) {
+    const pin = await ask("Inserisci il PIN della partita:");
+    playId = await validateMatchPin(pin);
+  }
+  const playerName = await ask("Inserisci il tuo nome giocatore:");
+  await connectToPanquiz(playId, playerName);
 })();
