@@ -22,7 +22,7 @@ async function validateMatchPin(pin) {
         "Accept": "*/*"
     };
     // Two colons after pinCode
-    const body = `pinCode:=${encodeURIComponent(pin)}`;
+    const body = `pinCode=${encodeURIComponent(pin)}`;
 
     try {
         const response = await fetch(url, {
