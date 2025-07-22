@@ -21,8 +21,8 @@ async function validateMatchPin(pin) {
         "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
         "Accept": "*/*"
     };
-    // Note: the colon is NOT encoded
-    const body = `pinCode:=${encodeURIComponent(pin)}`;
+    // Two colons after pinCode
+    const body = `pinCode::=${encodeURIComponent(pin)}`;
 
     try {
         const response = await fetch(url, {
