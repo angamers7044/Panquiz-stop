@@ -16,32 +16,16 @@ function showOutput(text, color = "#b2ffb2") {
 }
 
 async function validateMatchPin(pin) {
-    const url = "https://play.panquiz.com/api/v1/player/pin";
-    const headers = {
-        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-        "Accept": "*/*"
-    };
-    // Two colons after pinCode
-    const body = `pinCode=${encodeURIComponent(pin)}`;
-
-    try {
-        const response = await fetch(url, {
-            method: 'POST',
-            headers,
-            body,
-            credentials: "include",
-            mode: "cors"
-        });
-        const data = await response.json();
-
-        if (data.playId) {
-            return data.playId;
-        } else {
-            showOutput("PIN non valido. Riprova.", "#ffb2b2");
-            return null;
-        }
-    } catch (error) {
-        showOutput("Errore di rete.", "#ffb2b2");
+    const response = await fetch('https://panquiz-proxy.vercel.app/api/pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `pin=${encodeURIComponent(pin)}`
+    });
+    const data = await response.json();
+    if (data.playId) {
+        return data.playId;
+    } else {
+        showOutput("PIN non valido. Riprova.", "#ffb2b2");
         return null;
     }
 }
