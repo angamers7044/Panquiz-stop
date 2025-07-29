@@ -217,69 +217,6 @@ app.post('/api/validate-pin', async (req, res) => {
     }
 });
 
-// Auto PIN finder endpoint
-app.post('/api/find-pin', async (req, res) => {
-    try {
-        const { maxAttempts = 50, startRange = 100000, endRange = 999999 } = req.body;
-
-        console.log(`🎯 Starting auto PIN finder: ${maxAttempts} attempts, range ${startRange}-${endRange}`);
-
-        let attempts = 0;
-        const foundPins = [];
-        const failedPins = [];
-
-        while (attempts < maxAttempts && foundPins.length === 0) {
-            // Generate random PIN in range
-            const randomPin = Math.floor(Math.random() * (endRange - startRange + 1)) + startRange;
-            attempts++;
-
-            console.log(`🎲 Attempt ${attempts}: Testing PIN ${randomPin}`);
-
-            try {
-                const playId = await validateMatchPin(randomPin.toString());
-                
-                if (playId) {
-                    foundPins.push({
-                        pinCode: randomPin.toString(),
-                        playId: playId,
-                        attemptNumber: attempts
-                    });
-                    console.log(`✅ FOUND VALID PIN: ${randomPin} (PlayID: ${playId}) after ${attempts} attempts`);
-                    break;
-                } else {
-                    failedPins.push(randomPin.toString());
-                }
-            } catch (error) {
-                console.log(`❌ PIN ${randomPin} failed: ${error.message}`);
-                failedPins.push(randomPin.toString());
-            }
-
-            // Small delay to avoid overwhelming the server
-            await new Promise(resolve => setTimeout(resolve, 100));
-        }
-
-        if (foundPins.length > 0) {
-            res.json({
-                success: true,
-                foundPin: foundPins[0],
-                attempts: attempts,
-                failedAttempts: failedPins.length,
-                message: `🎯 PIN trovato! ${foundPins[0].pinCode} dopo ${attempts} tentativi`
-            });
-        } else {
-            res.json({
-                success: false,
-                attempts: attempts,
-                failedAttempts: failedPins.length,
-                message: `❌ Nessun PIN valido trovato dopo ${attempts} tentativi`
-            });
-        }
-
-    } catch (error) {
-        console.error('Auto PIN finder error:', error);
-        res.status(500).json({ error: 'Errore durante la ricerca automatica PIN' });
-    }
-});
 
 // Join game endpoint (requires valid PIN and player name)
 app.post('/api/join', async (req, res) => {
