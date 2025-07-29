@@ -196,6 +196,31 @@
             text-align: center;
         }
 
+        .bot-generator {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            align-items: end;
+        }
+
+        .preset-buttons {
+            grid-column: 1 / -1;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin: 10px 0;
+        }
+
+        .bot-generator .btn {
+            grid-column: 1 / -1;
+            margin: 0;
+        }
+
         .bot-manager-section textarea {
             width: 100%;
             min-height: 80px;
@@ -204,6 +229,20 @@
             border-radius: 10px;
             font-family: inherit;
             resize: vertical;
+        }
+
+        .bot-manager-section textarea[readonly] {
+            background-color: #f8f9fa;
+            color: #495057;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8em;
+            color: white;
         }
 
         .bots-dashboard {
@@ -335,9 +374,34 @@
         <div class="bot-manager-section" id="botManagerSection">
             <h3>🤖 Gestione Bot</h3>
             
+            <div class="bot-generator">
+                <div class="input-group">
+                    <label for="botBaseName">Nome Base Bot</label>
+                    <input type="text" id="botBaseName" placeholder="Mario" value="SuperBot">
+                </div>
+                
+                <div class="input-group">
+                    <label for="botCount">Numero Bot</label>
+                    <input type="number" id="botCount" placeholder="5" min="1" max="50" value="5">
+                </div>
+                
+                <div class="preset-buttons">
+                    <button class="btn-small" onclick="setPreset('Mario', 10)" style="background: #28a745;">🍄 Mario x10</button>
+                    <button class="btn-small" onclick="setPreset('Pikachu', 15)" style="background: #ffc107; color: black;">⚡ Pokémon x15</button>
+                    <button class="btn-small" onclick="setPreset('BotMaster', 20)" style="background: #6f42c1;">🤖 Elite x20</button>
+                </div>
+                
+                <button class="btn" id="generateBotsBtn" style="background: #17a2b8;">
+                    🎲 Genera Nomi Bot
+                </button>
+            </div>
+
             <div class="input-group">
-                <label for="bulkBotNames">Nomi Bot (uno per riga)</label>
-                <textarea id="bulkBotNames" placeholder="Bot_Mario&#10;Bot_Luigi&#10;Bot_Peach&#10;Bot_Bowser&#10;SuperBot_01&#10;QuizMaster_Pro" rows="4"></textarea>
+                <label for="bulkBotNames">Nomi Bot (modifica se vuoi)</label>
+                <textarea id="bulkBotNames" placeholder="I nomi verranno generati automaticamente..." rows="4" readonly></textarea>
+                <button class="btn-small" id="editNamesBtn" style="margin-top: 5px; background: #6c757d; font-size: 0.8em;">
+                    ✏️ Modifica Manualmente
+                </button>
             </div>
             
             <button class="btn" id="bulkJoinBtn" style="background: #28a745;">
@@ -405,6 +469,12 @@
             elements.form.style.display = 'none';
             elements.gameInfo.style.display = 'block';
             document.getElementById('botManagerSection').style.display = 'block';
+            
+            // Auto-generate default bot names when first showing
+            if (!document.getElementById('bulkBotNames').value.trim()) {
+                generateBotNames();
+            }
+            
             hideStatus();
         }
 
@@ -525,6 +595,52 @@
         // Bot management variables
         let activeBots = [];
         let currentPlayId = null;
+        let manualEditMode = false;
+
+        // Bot name generator function
+        function generateBotNames() {
+            const baseName = document.getElementById('botBaseName').value.trim();
+            const count = parseInt(document.getElementById('botCount').value);
+            
+            if (!baseName) {
+                showStatus('Inserisci un nome base per i bot', 'error');
+                return;
+            }
+            
+            if (!count || count < 1 || count > 50) {
+                showStatus('Inserisci un numero valido di bot (1-50)', 'error');
+                return;
+            }
+            
+            const botNames = [];
+            for (let i = 1; i <= count; i++) {
+                botNames.push(`${baseName} - ${i}`);
+            }
+            
+            document.getElementById('bulkBotNames').value = botNames.join('\n');
+            showStatus(`🎲 Generati ${count} nomi bot!`, 'success');
+        }
+
+        function toggleEditMode() {
+            const textarea = document.getElementById('bulkBotNames');
+            const editBtn = document.getElementById('editNamesBtn');
+            
+            manualEditMode = !manualEditMode;
+            
+            if (manualEditMode) {
+                textarea.readOnly = false;
+                textarea.style.backgroundColor = '#fff';
+                editBtn.textContent = '🔒 Blocca Modifica';
+                editBtn.style.background = '#dc3545';
+                showStatus('✏️ Modalità modifica attivata', 'info');
+            } else {
+                textarea.readOnly = true;
+                textarea.style.backgroundColor = '#f8f9fa';
+                editBtn.textContent = '✏️ Modifica Manualmente';
+                editBtn.style.background = '#6c757d';
+                showStatus('🔒 Modifica bloccata', 'info');
+            }
+        }
 
         // Bot management functions
         async function bulkJoinBots() {
@@ -636,8 +752,16 @@
             }
         }
 
-        // Make disconnectBot global for onclick
+        // Preset function
+        function setPreset(baseName, count) {
+            document.getElementById('botBaseName').value = baseName;
+            document.getElementById('botCount').value = count;
+            generateBotNames();
+        }
+
+        // Make functions global for onclick
         window.disconnectBot = disconnectBot;
+        window.setPreset = setPreset;
 
         // Event listeners
         elements.form.addEventListener('submit', async (e) => {
@@ -656,6 +780,8 @@
         elements.disconnectBtn.addEventListener('click', disconnect);
 
         // Bot management event listeners
+        document.getElementById('generateBotsBtn').addEventListener('click', generateBotNames);
+        document.getElementById('editNamesBtn').addEventListener('click', toggleEditMode);
         document.getElementById('bulkJoinBtn').addEventListener('click', bulkJoinBots);
 
         document.getElementById('selectAllBtn').addEventListener('click', () => {
