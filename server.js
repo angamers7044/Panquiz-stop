@@ -54,7 +54,7 @@ async function validateMatchPin(pin) {
 }
 
 // Enhanced WebSocket connection with event tracking
-function createEnhancedWebSocketConnection(websocketUrl, playId, playerName, connectionId) {
+async function createEnhancedWebSocketConnection(websocketUrl, playId, playerName, connectionId) {
     const WebSocket = (await import('ws')).default;
     const ws = new WebSocket(websocketUrl);
     
