@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panquiz Web Client</title>
+    <title>Panquiz Client Web</title>
     <style>
         * {
             margin: 0;
@@ -197,21 +197,21 @@
 <body>
     <div class="container">
         <div class="logo">🎯 Panquiz</div>
-        <div class="subtitle">Automated Quiz Client</div>
+        <div class="subtitle">Client Quiz Automatico</div>
         
         <form id="joinForm">
             <div class="input-group">
-                <label for="pin">Game PIN</label>
-                <input type="text" id="pin" placeholder="Enter the game PIN" required>
+                <label for="pin">PIN della Partita</label>
+                <input type="text" id="pin" placeholder="Inserisci il PIN della partita" required>
             </div>
             
             <div class="input-group">
-                <label for="playerName">Player Name</label>
-                <input type="text" id="playerName" placeholder="Enter your player name" required>
+                <label for="playerName">Nome Giocatore</label>
+                <input type="text" id="playerName" placeholder="Inserisci il tuo nome giocatore" required>
             </div>
             
             <button type="submit" class="btn" id="joinBtn">
-                <span class="btn-text">Join Game</span>
+                <span class="btn-text">Unisciti alla Partita</span>
                 <span class="loading hidden"></span>
             </button>
         </form>
@@ -219,20 +219,20 @@
         <div class="status" id="status"></div>
         
         <div class="game-info" id="gameInfo">
-            <h3>🎮 Game Status</h3>
-            <div id="gameStatus">Connected and ready!</div>
+            <h3>🎮 Stato della Partita</h3>
+            <div id="gameStatus">Connesso e pronto!</div>
             <div class="stats">
                 <div class="stat">
                     <div class="stat-value" id="questionsAnswered">0</div>
-                    <div class="stat-label">Questions Answered</div>
+                    <div class="stat-label">Domande Risposte</div>
                 </div>
                 <div class="stat">
                     <div class="stat-value" id="connectionStatus">●</div>
-                    <div class="stat-label">Connection</div>
+                    <div class="stat-label">Connessione</div>
                 </div>
             </div>
             <button class="btn" id="disconnectBtn" style="margin-top: 15px; background: #dc3545;">
-                Disconnect
+                Disconnetti
             </button>
         </div>
     </div>
@@ -305,7 +305,7 @@
             const data = await response.json();
             
             if (!response.ok) {
-                throw new Error(data.error || 'Failed to validate PIN');
+                throw new Error(data.error || 'Impossibile convalidare il PIN');
             }
             
             return data;
@@ -314,11 +314,11 @@
         async function joinGame(pinCode, playerName) {
             try {
                 setLoading(true);
-                showStatus('Validating PIN...', 'info');
+                showStatus('Convalida PIN...', 'info');
 
                 // First validate the PIN
                 await validatePin(pinCode);
-                showStatus('PIN valid! Joining game...', 'info');
+                showStatus('PIN valido! Unendosi alla partita...', 'info');
 
                 // Then join the game
                 const response = await fetch(`${API_BASE}/join`, {
@@ -332,15 +332,15 @@
                 const data = await response.json();
 
                 if (!response.ok) {
-                    throw new Error(data.error || 'Failed to join game');
+                    throw new Error(data.error || 'Impossibile unirsi alla partita');
                 }
 
                 currentConnection = data.connectionId;
                 showGameInfo();
                 monitorConnection();
                 
-                showStatus('Successfully connected to game!', 'success');
-                elements.gameStatus.textContent = `Connected as ${playerName}`;
+                showStatus('Connesso con successo alla partita!', 'success');
+                elements.gameStatus.textContent = `Connesso come ${playerName}`;
 
             } catch (error) {
                 console.error('Join game error:', error);
@@ -365,7 +365,7 @@
                 if (data.connected === false) {
                     elements.connectionStatus.textContent = '●';
                     elements.connectionStatus.style.color = '#dc3545';
-                    elements.gameStatus.textContent = 'Disconnected from game';
+                    elements.gameStatus.textContent = 'Disconnesso dalla partita';
                     return;
                 }
 
@@ -403,7 +403,7 @@
             const playerName = elements.playerName.value.trim();
             
             if (!pinCode || !playerName) {
-                showStatus('Please fill in all fields', 'error');
+                showStatus('Compila tutti i campi', 'error');
                 return;
             }
 

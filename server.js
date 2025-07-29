@@ -179,7 +179,7 @@ app.post('/api/validate-pin', async (req, res) => {
         const { pinCode } = req.body;
 
         if (!pinCode) {
-            return res.status(400).json({ error: 'PIN code is required' });
+            return res.status(400).json({ error: 'Il codice PIN è richiesto' });
         }
 
         console.log(`PIN validation request: ${pinCode}`);
@@ -187,7 +187,7 @@ app.post('/api/validate-pin', async (req, res) => {
         // Validate PIN
         const playId = await validateMatchPin(pinCode);
         if (!playId) {
-            return res.status(400).json({ error: 'Invalid PIN code' });
+            return res.status(400).json({ error: 'Codice PIN non valido' });
         }
 
         console.log(`PIN validated successfully: PlayID=${playId}`);
@@ -195,7 +195,7 @@ app.post('/api/validate-pin', async (req, res) => {
         res.json({
             success: true,
             playId: playId,
-            message: 'PIN is valid'
+            message: 'PIN è valido'
         });
 
     } catch (error) {
@@ -210,7 +210,7 @@ app.post('/api/join', async (req, res) => {
         const { pinCode, playerName } = req.body;
 
         if (!pinCode || !playerName) {
-            return res.status(400).json({ error: 'PIN code and player name are required' });
+            return res.status(400).json({ error: 'Codice PIN e nome giocatore sono richiesti' });
         }
 
         console.log(`Join request: PIN=${pinCode}, Player=${playerName}`);
@@ -218,7 +218,7 @@ app.post('/api/join', async (req, res) => {
         // First validate PIN
         const playId = await validateMatchPin(pinCode);
         if (!playId) {
-            return res.status(400).json({ error: 'Invalid PIN code' });
+            return res.status(400).json({ error: 'Codice PIN non valido' });
         }
 
         console.log(`PIN validated: PlayID=${playId}`);
@@ -226,7 +226,7 @@ app.post('/api/join', async (req, res) => {
         // Negotiate SignalR connection
         const negotiation = await negotiateSignalRConnection();
         if (!negotiation) {
-            return res.status(500).json({ error: 'Failed to negotiate connection' });
+            return res.status(500).json({ error: 'Impossibile negoziare la connessione' });
         }
 
         console.log('SignalR connection negotiated successfully');
@@ -247,7 +247,7 @@ app.post('/api/join', async (req, res) => {
             connectionId: connectionId,
             playId: playId,
             playerName: playerName,
-            message: 'Successfully joined the game'
+            message: 'Ti sei unito con successo alla partita'
         });
 
     } catch (error) {
