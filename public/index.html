@@ -235,6 +235,33 @@
                 Disconnetti
             </button>
         </div>
+
+        <div class="multi-player-section" id="multiPlayerSection">
+            <h3>👥 Gestione Multi-Giocatore</h3>
+            
+            <div class="input-group">
+                <label for="bulkPlayerNames">Nomi Giocatori (uno per riga)</label>
+                <textarea id="bulkPlayerNames" placeholder="Mario&#10;Luigi&#10;Peach&#10;Bowser" rows="4"></textarea>
+            </div>
+            
+            <button class="btn" id="bulkJoinBtn" style="background: #28a745;">
+                <span class="btn-text">Aggiungi Tutti i Giocatori</span>
+                <span class="loading hidden"></span>
+            </button>
+
+            <div class="players-dashboard" id="playersDashboard">
+                <h4>🎮 Giocatori Attivi</h4>
+                <div class="players-list" id="playersList">
+                    <!-- Players will be added dynamically -->
+                </div>
+                
+                <div class="bulk-actions">
+                    <button class="btn" id="selectAllBtn" style="background: #6c757d; font-size: 0.8em;">Seleziona Tutti</button>
+                    <button class="btn" id="disconnectSelectedBtn" style="background: #dc3545; font-size: 0.8em;">Disconnetti Selezionati</button>
+                    <button class="btn" id="refreshPlayersBtn" style="background: #17a2b8; font-size: 0.8em;">Aggiorna Lista</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>

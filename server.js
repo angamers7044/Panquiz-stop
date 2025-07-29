@@ -261,6 +261,78 @@ app.post('/api/join', async (req, res) => {
     }
 });
 
+// Bulk join endpoint - Add multiple players at once
+app.post('/api/bulk-join', async (req, res) => {
+    try {
+        const { pinCode, playerNames } = req.body;
+
+        if (!pinCode || !Array.isArray(playerNames) || playerNames.length === 0) {
+            return res.status(400).json({ error: 'Codice PIN e lista nomi giocatori sono richiesti' });
+        }
+
+        console.log(`Bulk join request: PIN=${pinCode}, Players=${playerNames.length}`);
+
+        // First validate PIN
+        const playId = await validateMatchPin(pinCode);
+        if (!playId) {
+            return res.status(400).json({ error: 'Codice PIN non valido' });
+        }
+
+        const results = [];
+        const errors = [];
+
+        // Join each player
+        for (const playerName of playerNames) {
+            try {
+                // Negotiate SignalR connection for each player
+                const negotiation = await negotiateSignalRConnection();
+                if (!negotiation) {
+                    errors.push({ playerName, error: 'Impossibile negoziare la connessione' });
+                    continue;
+                }
+
+                // Create connection ID
+                const connectionId = uuidv4();
+
+                // Establish WebSocket connection
+                const connectionData = await createEnhancedWebSocketConnection(
+                    negotiation.websocketUrl, 
+                    playId, 
+                    playerName, 
+                    connectionId
+                );
+
+                results.push({
+                    success: true,
+                    connectionId: connectionId,
+                    playId: playId,
+                    playerName: playerName
+                });
+
+                console.log(`Player ${playerName} joined successfully (${connectionId})`);
+
+            } catch (error) {
+                console.error(`Error joining player ${playerName}:`, error);
+                errors.push({ playerName, error: error.message });
+            }
+        }
+
+        res.json({
+            success: true,
+            totalPlayers: playerNames.length,
+            successfulJoins: results.length,
+            failedJoins: errors.length,
+            players: results,
+            errors: errors,
+            message: `${results.length}/${playerNames.length} giocatori si sono uniti con successo`
+        });
+
+    } catch (error) {
+        console.error('Bulk join error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 // Get connection status
 app.get('/api/status/:connectionId', (req, res) => {
     const { connectionId } = req.params;
@@ -308,6 +380,78 @@ app.get('/api/connections', (req, res) => {
     }));
 
     res.json(connections);
+});
+
+// Get connections by PlayID (for multi-player management)
+app.get('/api/connections/game/:playId', (req, res) => {
+    const { playId } = req.params;
+    const gameConnections = Array.from(activeConnections.values())
+        .filter(conn => conn.playId === playId)
+        .map(conn => ({
+            id: conn.id,
+            playerName: conn.playerName,
+            connected: conn.connected,
+            questionsAnswered: conn.questionsAnswered,
+            lastActivity: conn.lastActivity
+        }));
+
+    res.json({
+        playId: playId,
+        totalPlayers: gameConnections.length,
+        activePlayers: gameConnections.filter(p => p.connected).length,
+        players: gameConnections
+    });
+});
+
+// Bulk disconnect endpoint
+app.post('/api/bulk-disconnect', (req, res) => {
+    try {
+        const { connectionIds } = req.body;
+
+        if (!Array.isArray(connectionIds) || connectionIds.length === 0) {
+            return res.status(400).json({ error: 'Lista connection IDs richiesta' });
+        }
+
+        const results = [];
+        const errors = [];
+
+        for (const connectionId of connectionIds) {
+            try {
+                const connection = activeConnections.get(connectionId);
+                if (!connection) {
+                    errors.push({ connectionId, error: 'Connessione non trovata' });
+                    continue;
+                }
+
+                if (connection.ws && connection.connected) {
+                    connection.ws.close();
+                }
+                connection.connected = false;
+
+                results.push({
+                    connectionId: connectionId,
+                    playerName: connection.playerName,
+                    disconnected: true
+                });
+
+            } catch (error) {
+                errors.push({ connectionId, error: error.message });
+            }
+        }
+
+        res.json({
+            success: true,
+            totalRequests: connectionIds.length,
+            successfulDisconnects: results.length,
+            failedDisconnects: errors.length,
+            disconnected: results,
+            errors: errors
+        });
+
+    } catch (error) {
+        console.error('Bulk disconnect error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
 });
 
 // Health check
