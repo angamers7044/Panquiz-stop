@@ -6,7 +6,9 @@
   "main": "main.js",
   "type": "module", 
   "scripts": {
-    "start": "node main.js"
+    "start": "node main.js",
+    "web": "node server.js",
+    "dev": "node server.js"
   },
   "keywords": [
     "panquiz",
@@ -19,6 +21,9 @@
   "dependencies": {
     "node-fetch": "^3.3.2",
     "readline-sync": "^1.4.10",
-    "ws": "^8.13.0"
+    "ws": "^8.13.0",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "uuid": "^9.0.0"
   }
 }
