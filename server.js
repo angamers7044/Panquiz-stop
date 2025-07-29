@@ -261,16 +261,16 @@ app.post('/api/join', async (req, res) => {
     }
 });
 
-// Bulk join endpoint - Add multiple players at once
+// Bulk join endpoint - Add multiple bots at once
 app.post('/api/bulk-join', async (req, res) => {
     try {
-        const { pinCode, playerNames } = req.body;
+        const { pinCode, botNames } = req.body;
 
-        if (!pinCode || !Array.isArray(playerNames) || playerNames.length === 0) {
-            return res.status(400).json({ error: 'Codice PIN e lista nomi giocatori sono richiesti' });
+        if (!pinCode || !Array.isArray(botNames) || botNames.length === 0) {
+            return res.status(400).json({ error: 'Codice PIN e lista nomi bot sono richiesti' });
         }
 
-        console.log(`Bulk join request: PIN=${pinCode}, Players=${playerNames.length}`);
+        console.log(`🤖 Bulk bot join request: PIN=${pinCode}, Bots=${botNames.length}`);
 
         // First validate PIN
         const playId = await validateMatchPin(pinCode);
@@ -281,13 +281,13 @@ app.post('/api/bulk-join', async (req, res) => {
         const results = [];
         const errors = [];
 
-        // Join each player
-        for (const playerName of playerNames) {
+        // Join each bot
+        for (const botName of botNames) {
             try {
-                // Negotiate SignalR connection for each player
+                // Negotiate SignalR connection for each bot
                 const negotiation = await negotiateSignalRConnection();
                 if (!negotiation) {
-                    errors.push({ playerName, error: 'Impossibile negoziare la connessione' });
+                    errors.push({ botName, error: 'Impossibile negoziare la connessione' });
                     continue;
                 }
 
@@ -298,7 +298,7 @@ app.post('/api/bulk-join', async (req, res) => {
                 const connectionData = await createEnhancedWebSocketConnection(
                     negotiation.websocketUrl, 
                     playId, 
-                    playerName, 
+                    botName, 
                     connectionId
                 );
 
@@ -306,29 +306,30 @@ app.post('/api/bulk-join', async (req, res) => {
                     success: true,
                     connectionId: connectionId,
                     playId: playId,
-                    playerName: playerName
+                    botName: botName,
+                    isBot: true
                 });
 
-                console.log(`Player ${playerName} joined successfully (${connectionId})`);
+                console.log(`🤖 Bot ${botName} joined successfully (${connectionId})`);
 
             } catch (error) {
-                console.error(`Error joining player ${playerName}:`, error);
-                errors.push({ playerName, error: error.message });
+                console.error(`❌ Error joining bot ${botName}:`, error);
+                errors.push({ botName, error: error.message });
             }
         }
 
         res.json({
             success: true,
-            totalPlayers: playerNames.length,
+            totalBots: botNames.length,
             successfulJoins: results.length,
             failedJoins: errors.length,
-            players: results,
+            bots: results,
             errors: errors,
-            message: `${results.length}/${playerNames.length} giocatori si sono uniti con successo`
+            message: `🤖 ${results.length}/${botNames.length} bot avviati con successo!`
         });
 
     } catch (error) {
-        console.error('Bulk join error:', error);
+        console.error('Bulk bot join error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });

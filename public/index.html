@@ -181,6 +181,102 @@
             display: none;
         }
 
+        .bot-manager-section {
+            display: none;
+            margin-top: 30px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            text-align: left;
+        }
+
+        .bot-manager-section h3, .bot-manager-section h4 {
+            color: #667eea;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .bot-manager-section textarea {
+            width: 100%;
+            min-height: 80px;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-family: inherit;
+            resize: vertical;
+        }
+
+        .bots-dashboard {
+            margin-top: 20px;
+        }
+
+        .bots-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            padding: 10px;
+            margin-bottom: 15px;
+            background: rgba(255, 255, 255, 0.8);
+        }
+
+        .bot-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            margin: 5px 0;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+        }
+
+        .bot-item.disconnected {
+            border-left-color: #dc3545;
+            opacity: 0.7;
+        }
+
+        .bot-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .bot-status {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #28a745;
+        }
+
+        .bot-status.disconnected {
+            background: #dc3545;
+        }
+
+        .bot-checkbox {
+            margin-right: 5px;
+        }
+
+        .bot-name {
+            font-weight: bold;
+        }
+
+        .bot-stats {
+            color: #666;
+            margin-left: 10px;
+        }
+
+        .bulk-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .bulk-actions .btn {
+            flex: 1;
+            min-width: 120px;
+        }
+
         @media (max-width: 480px) {
             .container {
                 margin: 10px;
@@ -236,29 +332,29 @@
             </button>
         </div>
 
-        <div class="multi-player-section" id="multiPlayerSection">
-            <h3>👥 Gestione Multi-Giocatore</h3>
+        <div class="bot-manager-section" id="botManagerSection">
+            <h3>🤖 Gestione Bot</h3>
             
             <div class="input-group">
-                <label for="bulkPlayerNames">Nomi Giocatori (uno per riga)</label>
-                <textarea id="bulkPlayerNames" placeholder="Mario&#10;Luigi&#10;Peach&#10;Bowser" rows="4"></textarea>
+                <label for="bulkBotNames">Nomi Bot (uno per riga)</label>
+                <textarea id="bulkBotNames" placeholder="Bot_Mario&#10;Bot_Luigi&#10;Bot_Peach&#10;Bot_Bowser&#10;SuperBot_01&#10;QuizMaster_Pro" rows="4"></textarea>
             </div>
             
             <button class="btn" id="bulkJoinBtn" style="background: #28a745;">
-                <span class="btn-text">Aggiungi Tutti i Giocatori</span>
+                <span class="btn-text">🚀 Avvia Tutti i Bot</span>
                 <span class="loading hidden"></span>
             </button>
 
-            <div class="players-dashboard" id="playersDashboard">
-                <h4>🎮 Giocatori Attivi</h4>
-                <div class="players-list" id="playersList">
-                    <!-- Players will be added dynamically -->
+            <div class="bots-dashboard" id="botsDashboard">
+                <h4>🤖 Bot Attivi</h4>
+                <div class="bots-list" id="botsList">
+                    <!-- Bots will be added dynamically -->
                 </div>
                 
                 <div class="bulk-actions">
                     <button class="btn" id="selectAllBtn" style="background: #6c757d; font-size: 0.8em;">Seleziona Tutti</button>
-                    <button class="btn" id="disconnectSelectedBtn" style="background: #dc3545; font-size: 0.8em;">Disconnetti Selezionati</button>
-                    <button class="btn" id="refreshPlayersBtn" style="background: #17a2b8; font-size: 0.8em;">Aggiorna Lista</button>
+                    <button class="btn" id="disconnectSelectedBtn" style="background: #dc3545; font-size: 0.8em;">🛑 Ferma Selezionati</button>
+                    <button class="btn" id="refreshBotsBtn" style="background: #17a2b8; font-size: 0.8em;">🔄 Aggiorna Lista</button>
                 </div>
             </div>
         </div>
@@ -308,12 +404,14 @@
         function showGameInfo() {
             elements.form.style.display = 'none';
             elements.gameInfo.style.display = 'block';
+            document.getElementById('botManagerSection').style.display = 'block';
             hideStatus();
         }
 
         function hideGameInfo() {
             elements.form.style.display = 'block';
             elements.gameInfo.style.display = 'none';
+            document.getElementById('botManagerSection').style.display = 'none';
             questionsCount = 0;
             elements.questionsAnswered.textContent = '0';
             elements.connectionStatus.textContent = '●';
@@ -363,6 +461,7 @@
                 }
 
                 currentConnection = data.connectionId;
+                currentPlayId = data.playId; // Save playId for bot management
                 showGameInfo();
                 monitorConnection();
                 
@@ -423,6 +522,123 @@
             elements.playerName.value = '';
         }
 
+        // Bot management variables
+        let activeBots = [];
+        let currentPlayId = null;
+
+        // Bot management functions
+        async function bulkJoinBots() {
+            const botNamesText = document.getElementById('bulkBotNames').value.trim();
+            if (!botNamesText) {
+                showStatus('Inserisci almeno un nome bot', 'error');
+                return;
+            }
+
+            const botNames = botNamesText.split('\n').map(name => name.trim()).filter(name => name);
+            if (botNames.length === 0) {
+                showStatus('Inserisci nomi bot validi', 'error');
+                return;
+            }
+
+            if (!currentPlayId) {
+                showStatus('Prima unisciti tu alla partita', 'error');
+                return;
+            }
+
+            try {
+                setBulkLoading(true);
+                showStatus(`🤖 Avviando ${botNames.length} bot...`, 'info');
+
+                const response = await fetch(`${API_BASE}/bulk-join`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        pinCode: elements.pin.value.trim(), 
+                        botNames: botNames 
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Errore avvio bot');
+                }
+
+                // Add successful bots to our list
+                activeBots.push(...data.bots);
+                updateBotsDisplay();
+
+                showStatus(data.message, 'success');
+                document.getElementById('bulkBotNames').value = '';
+
+            } catch (error) {
+                console.error('Bulk bot join error:', error);
+                showStatus(error.message, 'error');
+            } finally {
+                setBulkLoading(false);
+            }
+        }
+
+        function setBulkLoading(loading) {
+            const btn = document.getElementById('bulkJoinBtn');
+            const btnText = btn.querySelector('.btn-text');
+            const loadingSpinner = btn.querySelector('.loading');
+            
+            btn.disabled = loading;
+            if (loading) {
+                btnText.classList.add('hidden');
+                loadingSpinner.classList.remove('hidden');
+            } else {
+                btnText.classList.remove('hidden');
+                loadingSpinner.classList.add('hidden');
+            }
+        }
+
+        function updateBotsDisplay() {
+            const botsList = document.getElementById('botsList');
+            botsList.innerHTML = '';
+
+            if (activeBots.length === 0) {
+                botsList.innerHTML = '<p style="text-align: center; color: #666; font-style: italic;">Nessun bot attivo</p>';
+                return;
+            }
+
+            activeBots.forEach(bot => {
+                const botItem = document.createElement('div');
+                botItem.className = 'bot-item';
+                botItem.innerHTML = `
+                    <div class="bot-info">
+                        <input type="checkbox" class="bot-checkbox" data-connection-id="${bot.connectionId}">
+                        <div class="bot-status ${bot.connected === false ? 'disconnected' : ''}"></div>
+                        <span class="bot-name">🤖 ${bot.botName || bot.playerName}</span>
+                        <small class="bot-stats">Domande: <span id="bot-${bot.connectionId}-questions">0</span></small>
+                    </div>
+                    <button class="btn-small" onclick="disconnectBot('${bot.connectionId}')" style="background: #dc3545; color: white; padding: 4px 8px; border: none; border-radius: 4px; font-size: 0.7em;">
+                        🛑 Ferma
+                    </button>
+                `;
+                botsList.appendChild(botItem);
+            });
+        }
+
+        async function disconnectBot(connectionId) {
+            try {
+                await fetch(`${API_BASE}/disconnect/${connectionId}`, { method: 'POST' });
+                
+                // Remove from active bots
+                activeBots = activeBots.filter(bot => bot.connectionId !== connectionId);
+                updateBotsDisplay();
+                
+                showStatus('🤖 Bot fermato', 'success');
+            } catch (error) {
+                console.error('Disconnect bot error:', error);
+                showStatus('Errore fermando bot', 'error');
+            }
+        }
+
+        // Make disconnectBot global for onclick
+        window.disconnectBot = disconnectBot;
+
         // Event listeners
         elements.form.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -438,6 +654,72 @@
         });
 
         elements.disconnectBtn.addEventListener('click', disconnect);
+
+        // Bot management event listeners
+        document.getElementById('bulkJoinBtn').addEventListener('click', bulkJoinBots);
+
+        document.getElementById('selectAllBtn').addEventListener('click', () => {
+            const checkboxes = document.querySelectorAll('.bot-checkbox');
+            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+            checkboxes.forEach(cb => cb.checked = !allChecked);
+        });
+
+        document.getElementById('disconnectSelectedBtn').addEventListener('click', async () => {
+            const selectedCheckboxes = document.querySelectorAll('.bot-checkbox:checked');
+            const connectionIds = Array.from(selectedCheckboxes).map(cb => cb.dataset.connectionId);
+            
+            if (connectionIds.length === 0) {
+                showStatus('Seleziona almeno un bot da fermare', 'error');
+                return;
+            }
+
+            try {
+                showStatus(`🛑 Fermando ${connectionIds.length} bot...`, 'info');
+                
+                const response = await fetch(`${API_BASE}/bulk-disconnect`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ connectionIds })
+                });
+
+                const data = await response.json();
+                
+                // Remove disconnected bots from our list
+                activeBots = activeBots.filter(bot => !connectionIds.includes(bot.connectionId));
+                updateBotsDisplay();
+                
+                showStatus(`🛑 ${data.successfulDisconnects} bot fermati`, 'success');
+                
+            } catch (error) {
+                console.error('Bulk disconnect error:', error);
+                showStatus('Errore fermando bot selezionati', 'error');
+            }
+        });
+
+        document.getElementById('refreshBotsBtn').addEventListener('click', async () => {
+            if (!currentPlayId) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/connections/game/${currentPlayId}`);
+                const data = await response.json();
+                
+                // Update our bot list with current status
+                activeBots.forEach(bot => {
+                    const serverBot = data.players.find(p => p.id === bot.connectionId);
+                    if (serverBot) {
+                        bot.connected = serverBot.connected;
+                        bot.questionsAnswered = serverBot.questionsAnswered;
+                    }
+                });
+                
+                updateBotsDisplay();
+                showStatus(`🔄 Lista aggiornata: ${data.activePlayers}/${data.totalPlayers} bot attivi`, 'info');
+                
+            } catch (error) {
+                console.error('Refresh bots error:', error);
+                showStatus('Errore aggiornando lista bot', 'error');
+            }
+        });
 
         // Handle page visibility changes
         document.addEventListener('visibilitychange', () => {
