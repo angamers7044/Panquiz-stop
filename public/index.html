@@ -316,6 +316,81 @@
             min-width: 120px;
         }
 
+        .pin-mode-selector {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+
+        .radio-group {
+            display: flex;
+            gap: 20px;
+            margin-top: 10px;
+        }
+
+        .radio-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            padding: 8px 12px;
+            border-radius: 8px;
+            transition: background-color 0.3s;
+        }
+
+        .radio-label:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .radio-label input[type="radio"] {
+            margin: 0;
+        }
+
+        .auto-pin-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-top: 10px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+        }
+
+        .range-inputs {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .range-inputs input {
+            flex: 1;
+            max-width: 120px;
+        }
+
+        .range-inputs span {
+            font-weight: bold;
+        }
+
+        .attempts-input {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .attempts-input input {
+            max-width: 80px;
+        }
+
+        .auto-pin-status {
+            padding: 10px;
+            background: rgba(103, 126, 234, 0.1);
+            border-radius: 6px;
+            text-align: center;
+            font-style: italic;
+            color: #667eea;
+        }
+
         @media (max-width: 480px) {
             .container {
                 margin: 10px;
@@ -335,9 +410,43 @@
         <div class="subtitle">Client Quiz Automatico</div>
         
         <form id="joinForm">
-            <div class="input-group">
+            <div class="pin-mode-selector">
+                <div class="input-group">
+                    <label>Modalità PIN</label>
+                    <div class="radio-group">
+                        <label class="radio-label">
+                            <input type="radio" name="pinMode" value="manual" checked>
+                            📝 PIN Manuale
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="pinMode" value="auto">
+                            🎯 Trova PIN Automatico
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-group" id="manualPinGroup">
                 <label for="pin">PIN della Partita</label>
-                <input type="text" id="pin" placeholder="Inserisci il PIN della partita" required>
+                <input type="text" id="pin" placeholder="Inserisci il PIN della partita">
+            </div>
+
+            <div class="input-group" id="autoPinGroup" style="display: none;">
+                <label>Ricerca Automatica PIN</label>
+                <div class="auto-pin-controls">
+                    <div class="range-inputs">
+                        <input type="number" id="startRange" placeholder="Da" value="100000" min="100000" max="999999">
+                        <span>-</span>
+                        <input type="number" id="endRange" placeholder="A" value="999999" min="100000" max="999999">
+                    </div>
+                    <div class="attempts-input">
+                        <label for="maxAttempts">Max tentativi:</label>
+                        <input type="number" id="maxAttempts" value="30" min="5" max="100">
+                    </div>
+                </div>
+                <div class="auto-pin-status" id="autoPinStatus">
+                    Il server cercherà automaticamente PIN validi...
+                </div>
             </div>
             
             <div class="input-group">
@@ -346,7 +455,7 @@
             </div>
             
             <button type="submit" class="btn" id="joinBtn">
-                <span class="btn-text">Unisciti alla Partita</span>
+                <span class="btn-text" id="joinBtnText">Unisciti alla Partita</span>
                 <span class="loading hidden"></span>
             </button>
         </form>
