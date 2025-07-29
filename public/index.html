@@ -375,9 +375,13 @@
 
         <div class="bot-manager-section" id="botManagerSection">
             <h3>🤖 Gestione Bot</h3>
-            <p style="font-size: 0.9em; color: #6c757d; margin-bottom: 15px;">
-                🔄 <strong>Auto-Riconnessione:</strong> I bot si riconnettono automaticamente quando l'host riavvia la partita!
-            </p>
+            <div style="font-size: 0.9em; color: #6c757d; margin-bottom: 15px;">
+                <p style="margin-bottom: 8px;">🔄 <strong>Auto-Riconnessione:</strong> I bot si riconnettono automaticamente quando l'host riavvia la partita!</p>
+                <p style="margin-bottom: 8px;">📌 <strong>PIN Automatico:</strong> Il PIN si aggiorna automaticamente quando l'host riavvia.</p>
+                <button onclick="checkAndUpdateCurrentPIN()" style="background: #17a2b8; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.8em; cursor: pointer;">
+                    🔍 Controlla PIN Ora
+                </button>
+            </div>
             
             <div class="bot-generator">
                 <div class="input-group">
@@ -862,6 +866,57 @@
                 monitorConnection();
             }
         });
+
+        // Function to check and update current PIN
+        async function checkAndUpdateCurrentPIN() {
+            try {
+                const response = await fetch(`${API_BASE}/current-game`);
+                const data = await response.json();
+                
+                if (data.success && data.gameInfo && data.gameInfo.pin) {
+                    const currentPinInput = document.getElementById('pin');
+                    const newPin = data.gameInfo.pin;
+                    const oldPin = currentPinInput.value;
+                    
+                    if (newPin !== oldPin && newPin !== currentPlayId) {
+                        currentPinInput.value = newPin;
+                        console.log(`📌 PIN updated automatically: ${oldPin} → ${newPin}`);
+                        showStatus(`📌 PIN aggiornato automaticamente: ${newPin}`, 'info');
+                        
+                        // Update global PlayID if we have it
+                        if (data.gameInfo.playId) {
+                            currentPlayId = data.gameInfo.playId;
+                            console.log(`🎮 PlayID updated: ${currentPlayId}`);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.log('Current PIN check failed:', error.message);
+            }
+        }
+
+        // Auto check for PIN updates every 15 seconds
+        setInterval(async () => {
+            if (currentPlayId) {
+                // Refresh bots status
+                try {
+                    const response = await fetch(`${API_BASE}/connections/game/${currentPlayId}`);
+                    const data = await response.json();
+                    activeBots.forEach(bot => {
+                        const serverBot = data.players.find(p => p.id === bot.connectionId);
+                        if (serverBot) {
+                            bot.connected = serverBot.connected;
+                            bot.questionsAnswered = serverBot.questionsAnswered;
+                        }
+                    });
+                    updateBotsDisplay();
+                } catch (error) {
+                    console.log('Auto refresh failed:', error);
+                }
+            }
+            // Always check for PIN updates (even if no bots active)
+            await checkAndUpdateCurrentPIN();
+        }, 15000);
 
         // Handle page unload
         window.addEventListener('beforeunload', () => {

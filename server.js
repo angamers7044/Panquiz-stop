@@ -30,6 +30,14 @@ console.log('📡 All PORT env vars:', {
 // Store active connections
 const activeConnections = new Map();
 
+// Store current game info (updated via PlayAgain messages)
+let currentGameInfo = {
+    playId: null,
+    pin: null,
+    gameNumber: 0,
+    lastUpdated: null
+};
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -161,6 +169,15 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
                 const [oldPlayId, newPlayId, gameNumber, newPin] = parsedMessage.arguments;
                 
                 console.log(`🎮 Game restarted - Old PlayID: ${oldPlayId}, New PlayID: ${newPlayId}, Game: ${gameNumber}, PIN: ${newPin}`);
+                
+                // Update global game info with new PIN and PlayID
+                currentGameInfo = {
+                    playId: newPlayId,
+                    pin: newPin,
+                    gameNumber: parseInt(gameNumber) || 0,
+                    lastUpdated: new Date().toISOString()
+                };
+                console.log(`📌 Updated global game info: PIN ${newPin}, PlayID ${newPlayId}`);
                 
                 // Update connection data with new PlayID
                 connectionData.playId = newPlayId;
@@ -411,6 +428,19 @@ app.get('/api/connections', (req, res) => {
     }));
 
     res.json(connections);
+});
+
+// Get current game info (PIN, PlayID updated via PlayAgain)
+app.get('/api/current-game', (req, res) => {
+    try {
+        res.json({
+            success: true,
+            gameInfo: currentGameInfo
+        });
+    } catch (error) {
+        console.error('Error getting current game info:', error);
+        res.status(500).json({ error: 'Errore durante il recupero delle informazioni di gioco' });
+    }
 });
 
 // Get connections by PlayID (for multi-player management)
