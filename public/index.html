@@ -293,17 +293,40 @@
             elements.connectionStatus.style.color = '#28a745';
         }
 
-        async function joinGame(pin, playerName) {
+        async function validatePin(pinCode) {
+            const response = await fetch(`${API_BASE}/validate-pin`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ pinCode })
+            });
+
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to validate PIN');
+            }
+            
+            return data;
+        }
+
+        async function joinGame(pinCode, playerName) {
             try {
                 setLoading(true);
                 showStatus('Validating PIN...', 'info');
 
+                // First validate the PIN
+                await validatePin(pinCode);
+                showStatus('PIN valid! Joining game...', 'info');
+
+                // Then join the game
                 const response = await fetch(`${API_BASE}/join`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ pin, playerName })
+                    body: JSON.stringify({ pinCode, playerName })
                 });
 
                 const data = await response.json();
@@ -376,15 +399,15 @@
         // Event listeners
         elements.form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const pin = elements.pin.value.trim();
+            const pinCode = elements.pin.value.trim();
             const playerName = elements.playerName.value.trim();
             
-            if (!pin || !playerName) {
+            if (!pinCode || !playerName) {
                 showStatus('Please fill in all fields', 'error');
                 return;
             }
 
-            await joinGame(pin, playerName);
+            await joinGame(pinCode, playerName);
         });
 
         elements.disconnectBtn.addEventListener('click', disconnect);

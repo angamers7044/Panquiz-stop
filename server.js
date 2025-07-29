@@ -34,17 +34,37 @@ async function validateMatchPin(pin) {
         "Accept": "*/*",
         "Origin": "https://play.panquiz.com",
         "Referer": "https://play.panquiz.com/",
-        "User-Agent": "Mozilla/5.0"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
+        "X-Requested-With": "XMLHttpRequest"
     };
-    const body = new URLSearchParams({ pinCode: pin });
+    
+    // Ensure proper formatting of the PIN parameter
+    const body = new URLSearchParams();
+    body.append('pinCode', pin.toString().trim());
+
+    console.log(`Validating PIN: ${pin}`);
+    console.log(`Request body: ${body.toString()}`);
 
     try {
         const response = await fetch(url, { method: 'POST', headers, body });
+        
+        console.log(`Response status: ${response.status}`);
+        
+        if (!response.ok) {
+            console.error(`HTTP error: ${response.status} ${response.statusText}`);
+            return null;
+        }
+        
         const data = await response.json();
+        console.log('Response data:', data);
 
         if (data.playId) {
             return data.playId;
+        } else if (data.errorCode && data.errorCode !== 0) {
+            console.error(`Panquiz error: ${data.errorCode}`);
+            return null;
         } else {
+            console.error('No playId in response');
             return null;
         }
     } catch (error) {
@@ -153,21 +173,52 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
 
 // API Routes
 
-// Join game endpoint
-app.post('/api/join', async (req, res) => {
+// Validate PIN endpoint (separate from joining)
+app.post('/api/validate-pin', async (req, res) => {
     try {
-        const { pin, playerName } = req.body;
+        const { pinCode } = req.body;
 
-        if (!pin || !playerName) {
-            return res.status(400).json({ error: 'PIN and player name are required' });
+        if (!pinCode) {
+            return res.status(400).json({ error: 'PIN code is required' });
         }
 
-        console.log(`Join request: PIN=${pin}, Player=${playerName}`);
+        console.log(`PIN validation request: ${pinCode}`);
 
         // Validate PIN
-        const playId = await validateMatchPin(pin);
+        const playId = await validateMatchPin(pinCode);
         if (!playId) {
-            return res.status(400).json({ error: 'Invalid PIN' });
+            return res.status(400).json({ error: 'Invalid PIN code' });
+        }
+
+        console.log(`PIN validated successfully: PlayID=${playId}`);
+
+        res.json({
+            success: true,
+            playId: playId,
+            message: 'PIN is valid'
+        });
+
+    } catch (error) {
+        console.error('PIN validation error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Join game endpoint (requires valid PIN and player name)
+app.post('/api/join', async (req, res) => {
+    try {
+        const { pinCode, playerName } = req.body;
+
+        if (!pinCode || !playerName) {
+            return res.status(400).json({ error: 'PIN code and player name are required' });
+        }
+
+        console.log(`Join request: PIN=${pinCode}, Player=${playerName}`);
+
+        // First validate PIN
+        const playId = await validateMatchPin(pinCode);
+        if (!playId) {
+            return res.status(400).json({ error: 'Invalid PIN code' });
         }
 
         console.log(`PIN validated: PlayID=${playId}`);
@@ -195,7 +246,8 @@ app.post('/api/join', async (req, res) => {
             success: true,
             connectionId: connectionId,
             playId: playId,
-            playerName: playerName
+            playerName: playerName,
+            message: 'Successfully joined the game'
         });
 
     } catch (error) {
