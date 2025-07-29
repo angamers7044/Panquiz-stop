@@ -378,8 +378,11 @@
             <div style="font-size: 0.9em; color: #6c757d; margin-bottom: 15px;">
                 <p style="margin-bottom: 8px;">🔄 <strong>Auto-Riconnessione:</strong> I bot si riconnettono automaticamente quando l'host riavvia la partita!</p>
                 <p style="margin-bottom: 8px;">📌 <strong>PIN Automatico:</strong> Il PIN si aggiorna automaticamente quando l'host riavvia.</p>
-                <button onclick="checkAndUpdateCurrentPIN()" style="background: #17a2b8; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.8em; cursor: pointer;">
+                <button onclick="checkAndUpdateCurrentPIN()" style="background: #17a2b8; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.8em; cursor: pointer; margin-right: 8px;">
                     🔍 Controlla PIN Ora
+                </button>
+                <button onclick="reconnectAllBots()" style="background: #28a745; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.8em; cursor: pointer;">
+                    🔄 Riconnetti Bot
                 </button>
             </div>
             
@@ -881,17 +884,50 @@
                     if (newPin !== oldPin && newPin !== currentPlayId) {
                         currentPinInput.value = newPin;
                         console.log(`📌 PIN updated automatically: ${oldPin} → ${newPin}`);
-                        showStatus(`📌 PIN aggiornato automaticamente: ${newPin}`, 'info');
+                        showStatus(`📌 PIN aggiornato automaticamente: ${newPin} - Riconnettendo bot...`, 'info');
                         
                         // Update global PlayID if we have it
                         if (data.gameInfo.playId) {
                             currentPlayId = data.gameInfo.playId;
                             console.log(`🎮 PlayID updated: ${currentPlayId}`);
                         }
+                        
+                        // Trigger bot reconnection after PIN change
+                        await reconnectAllBots();
                     }
                 }
             } catch (error) {
                 console.log('Current PIN check failed:', error.message);
+            }
+        }
+
+        // Function to reconnect all bots after PlayAgain
+        async function reconnectAllBots() {
+            try {
+                console.log('🔄 Triggering bot reconnection...');
+                const response = await fetch(`${API_BASE}/reconnect-bots`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showStatus(`🔄 Bot riconnessi: ${data.reconnected} successo, ${data.failed} falliti`, 'info');
+                    
+                    // Refresh bot display after reconnection
+                    setTimeout(() => {
+                        if (currentPlayId) {
+                            document.getElementById('refreshBotsBtn').click();
+                        }
+                    }, 3000);
+                } else {
+                    showStatus('❌ Errore durante la riconnessione dei bot', 'error');
+                }
+                
+            } catch (error) {
+                console.error('Bot reconnection error:', error);
+                showStatus('❌ Errore durante la riconnessione dei bot', 'error');
             }
         }
 

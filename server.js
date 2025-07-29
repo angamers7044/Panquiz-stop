@@ -179,19 +179,17 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
                 };
                 console.log(`📌 Updated global game info: PIN ${newPin}, PlayID ${newPlayId}`);
                 
-                // Update connection data with new PlayID
+                // Update connection data with new game info but mark for reconnection
                 connectionData.playId = newPlayId;
-                connectionData.questionsAnswered = 0; // Reset question counter
+                connectionData.questionsAnswered = 0;
                 connectionData.lastActivity = Date.now();
+                connectionData.needsReconnection = true;
+                connectionData.newPin = newPin;
                 
-                // Send PlayerJoined message for the new game session
-                const playerJoinedAgain = {
-                    type: 1,
-                    target: "PlayerJoined",
-                    arguments: [newPlayId, playerName]
-                };
-                ws.send(JSON.stringify(playerJoinedAgain) + '\u001e');
-                console.log(`✅ ${playerName} automatically rejoined new game ${newPlayId}`);
+                console.log(`🔄 Marking ${playerName} for reconnection to new game ${newPlayId}...`);
+                
+                // Close current connection - reconnection will be handled externally
+                ws.close();
             }
 
             if (parsedMessage.type === 1 && parsedMessage.target === "PlayerDisconnected" && parsedMessage.arguments[0] === true) {
@@ -428,6 +426,74 @@ app.get('/api/connections', (req, res) => {
     }));
 
     res.json(connections);
+});
+
+// Function to reconnect a bot after PlayAgain
+async function reconnectBot(connectionId, newPlayId, playerName, newPin) {
+    try {
+        console.log(`🔄 Starting reconnection for ${playerName} to game ${newPlayId}...`);
+        
+        // Negotiate new SignalR connection
+        const negotiation = await negotiateSignalRConnection();
+        if (!negotiation) {
+            console.error(`❌ Failed to negotiate new connection for ${playerName}`);
+            return false;
+        }
+        
+        // Remove old connection data
+        activeConnections.delete(connectionId);
+        
+        // Create new WebSocket connection with same connectionId
+        await createEnhancedWebSocketConnection(negotiation.websocketUrl, newPlayId, playerName, connectionId);
+        console.log(`✅ ${playerName} successfully reconnected to game ${newPlayId}`);
+        return true;
+        
+    } catch (error) {
+        console.error(`❌ Reconnection failed for ${playerName}:`, error);
+        return false;
+    }
+}
+
+// Endpoint to trigger bot reconnection after PlayAgain
+app.post('/api/reconnect-bots', async (req, res) => {
+    try {
+        const reconnectionPromises = [];
+        
+        // Find all connections that need reconnection
+        for (const [connectionId, connection] of activeConnections.entries()) {
+            if (connection.needsReconnection) {
+                console.log(`🔄 Reconnecting bot: ${connection.playerName}`);
+                
+                const promise = reconnectBot(
+                    connectionId, 
+                    connection.playId, 
+                    connection.playerName, 
+                    connection.newPin
+                ).then(success => ({
+                    connectionId,
+                    playerName: connection.playerName,
+                    success
+                }));
+                
+                reconnectionPromises.push(promise);
+            }
+        }
+        
+        const results = await Promise.all(reconnectionPromises);
+        const successful = results.filter(r => r.success);
+        const failed = results.filter(r => !r.success);
+        
+        res.json({
+            success: true,
+            reconnected: successful.length,
+            failed: failed.length,
+            results: results
+        });
+        
+    } catch (error) {
+        console.error('Bot reconnection error:', error);
+        res.status(500).json({ error: 'Errore durante la riconnessione dei bot' });
+    }
 });
 
 // Get current game info (PIN, PlayID updated via PlayAgain)
