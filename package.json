@@ -6,9 +6,10 @@
   "main": "main.js",
   "type": "module", 
   "scripts": {
-    "start": "node main.js",
+    "start": "node server.js",
     "web": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "build": "echo 'No build needed'"
   },
   "keywords": [
     "panquiz",
