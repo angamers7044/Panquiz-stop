@@ -371,6 +371,9 @@
             <button class="btn" id="disconnectBtn" style="margin-top: 15px; background: #dc3545;">
                 Disconnetti
             </button>
+            <button class="btn" onclick="reconnectMainPlayer()" style="margin-top: 10px; background: #28a745;">
+                🔄 Riconnetti Giocatore
+            </button>
         </div>
 
         <div class="bot-manager-section" id="botManagerSection">
@@ -573,9 +576,17 @@
                 if (data.connected === false) {
                     elements.connectionStatus.textContent = '●';
                     elements.connectionStatus.style.color = '#dc3545';
-                    elements.gameStatus.textContent = 'Disconnesso dalla partita';
+                    elements.gameStatus.textContent = 'Disconnesso dalla partita - Tentativo riconnessione...';
+                    
+                    // Attempt automatic reconnection if we have current game info
+                    console.log('🔄 Main player disconnected, checking for reconnection...');
+                    await checkAndUpdateCurrentPIN(); // This will trigger reconnection if PIN changed
                     return;
                 }
+
+                // Update connection status to connected
+                elements.connectionStatus.textContent = '●';
+                elements.connectionStatus.style.color = '#28a745';
 
                 // Continue monitoring
                 setTimeout(monitorConnection, 2000);
@@ -884,7 +895,7 @@
                     if (newPin !== oldPin && newPin !== currentPlayId) {
                         currentPinInput.value = newPin;
                         console.log(`📌 PIN updated automatically: ${oldPin} → ${newPin}`);
-                        showStatus(`📌 PIN aggiornato automaticamente: ${newPin} - Riconnettendo bot...`, 'info');
+                        showStatus(`📌 PIN aggiornato automaticamente: ${newPin} - Riconnettendo...`, 'info');
                         
                         // Update global PlayID if we have it
                         if (data.gameInfo.playId) {
@@ -892,12 +903,95 @@
                             console.log(`🎮 PlayID updated: ${currentPlayId}`);
                         }
                         
+                        // Check if main player needs reconnection
+                        await checkMainPlayerReconnection(newPin);
+                        
                         // Trigger bot reconnection after PIN change
                         await reconnectAllBots();
                     }
                 }
             } catch (error) {
                 console.log('Current PIN check failed:', error.message);
+            }
+        }
+
+        // Function to check and reconnect main player if needed
+        async function checkMainPlayerReconnection(newPin) {
+            if (!currentConnection) return;
+            
+            try {
+                // Check if main player connection is still active
+                const statusResponse = await fetch(`${API_BASE}/status/${currentConnection}`);
+                const statusData = await statusResponse.json();
+                
+                if (statusData.connected === false || !statusResponse.ok) {
+                    console.log('🔄 Main player disconnected, attempting reconnection...');
+                    showStatus('🔄 Riconnettendo giocatore principale...', 'info');
+                    
+                    // Get current player name from interface
+                    const playerName = document.getElementById('playerName').value;
+                    if (!playerName) return;
+                    
+                    // Reconnect main player
+                    const response = await fetch(`${API_BASE}/join`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ pinCode: newPin, playerName })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        currentConnection = data.connectionId;
+                        currentPlayId = data.playId;
+                        showGameInfo();
+                        monitorConnection();
+                        showStatus(`✅ Giocatore principale riconnesso con successo!`, 'success');
+                        elements.gameStatus.textContent = `Riconnesso come ${playerName}`;
+                    } else {
+                        showStatus('❌ Errore riconnessione giocatore principale', 'error');
+                    }
+                }
+            } catch (error) {
+                console.error('Main player reconnection check failed:', error);
+            }
+        }
+
+        // Function to manually reconnect main player
+        async function reconnectMainPlayer() {
+            try {
+                const pinCode = document.getElementById('pin').value;
+                const playerName = document.getElementById('playerName').value;
+                
+                if (!pinCode || !playerName) {
+                    showStatus('❌ Inserisci PIN e nome giocatore', 'error');
+                    return;
+                }
+                
+                showStatus('🔄 Riconnettendo giocatore principale...', 'info');
+                
+                const response = await fetch(`${API_BASE}/join`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pinCode, playerName })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    currentConnection = data.connectionId;
+                    currentPlayId = data.playId;
+                    showGameInfo();
+                    monitorConnection();
+                    showStatus(`✅ Giocatore principale riconnesso con successo!`, 'success');
+                    elements.gameStatus.textContent = `Riconnesso come ${playerName}`;
+                } else {
+                    showStatus(`❌ Errore riconnessione: ${data.error}`, 'error');
+                }
+                
+            } catch (error) {
+                console.error('Manual reconnection failed:', error);
+                showStatus('❌ Errore durante la riconnessione', 'error');
             }
         }
 
