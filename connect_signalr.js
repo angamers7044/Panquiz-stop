@@ -45,6 +45,25 @@ export function establishWebSocketConnection(websocketUrl, playId, playerName) {
             }
         }
 
+        if (parsedMessage.type === 1 && parsedMessage.target === "PlayAgain") {
+            console.log('🔄 PlayAgain detected! Game restarting...');
+            const [oldPlayId, newPlayId, gameNumber, newPin] = parsedMessage.arguments;
+            
+            console.log(`🎮 Game restarted - Old PlayID: ${oldPlayId}, New PlayID: ${newPlayId}, Game: ${gameNumber}, PIN: ${newPin}`);
+            
+            // Send PlayerJoined message for the new game session
+            const playerJoinedAgain = {
+                type: 1,
+                target: "PlayerJoined",
+                arguments: [newPlayId, playerName]
+            };
+            ws.send(JSON.stringify(playerJoinedAgain) + '\u001e');
+            console.log(`✅ Player automatically rejoined new game ${newPlayId}`);
+            
+            // Update the playId for future messages in this session
+            playId = newPlayId;
+        }
+
         if (parsedMessage.type === 1 && parsedMessage.target === "PlayerDisconnected" && parsedMessage.arguments[0] === true) {
             ws.close();
         }

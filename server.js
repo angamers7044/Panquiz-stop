@@ -156,6 +156,27 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
                 }
             }
 
+            if (parsedMessage.type === 1 && parsedMessage.target === "PlayAgain") {
+                console.log(`🔄 PlayAgain detected for ${playerName}!`);
+                const [oldPlayId, newPlayId, gameNumber, newPin] = parsedMessage.arguments;
+                
+                console.log(`🎮 Game restarted - Old PlayID: ${oldPlayId}, New PlayID: ${newPlayId}, Game: ${gameNumber}, PIN: ${newPin}`);
+                
+                // Update connection data with new PlayID
+                connectionData.playId = newPlayId;
+                connectionData.questionsAnswered = 0; // Reset question counter
+                connectionData.lastActivity = Date.now();
+                
+                // Send PlayerJoined message for the new game session
+                const playerJoinedAgain = {
+                    type: 1,
+                    target: "PlayerJoined",
+                    arguments: [newPlayId, playerName]
+                };
+                ws.send(JSON.stringify(playerJoinedAgain) + '\u001e');
+                console.log(`✅ ${playerName} automatically rejoined new game ${newPlayId}`);
+            }
+
             if (parsedMessage.type === 1 && parsedMessage.target === "PlayerDisconnected" && parsedMessage.arguments[0] === true) {
                 console.log(`Player ${playerName} disconnected from game`);
                 connectionData.connected = false;
