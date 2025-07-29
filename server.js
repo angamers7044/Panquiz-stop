@@ -15,6 +15,11 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+console.log('🔧 Starting Panquiz server...');
+console.log('🌍 Environment:', process.env.NODE_ENV || 'development');
+console.log('🚪 Port:', PORT);
+console.log('🚂 Railway Environment:', process.env.RAILWAY_ENVIRONMENT || 'not detected');
+
 // Store active connections
 const activeConnections = new Map();
 
@@ -338,8 +343,8 @@ setInterval(() => {
 // Export for Vercel serverless
 export default app;
 
-// Start server only in development
-if (process.env.NODE_ENV !== 'production') {
+// Start server (always in Railway)
+if (process.env.NODE_ENV !== 'production' || process.env.RAILWAY_ENVIRONMENT) {
     app.listen(PORT, () => {
         console.log(`🚀 Panquiz Proxy Server running on http://localhost:${PORT}`);
         console.log(`📂 Serving web interface from /public`);
