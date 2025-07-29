@@ -13,12 +13,19 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+// Force port detection for different hosting services
+const PORT = process.env.PORT || process.env.SERVER_PORT || 3000;
 
 console.log('🔧 Starting Panquiz server...');
 console.log('🌍 Environment:', process.env.NODE_ENV || 'development');
 console.log('🚪 Port:', PORT);
 console.log('🚂 Railway Environment:', process.env.RAILWAY_ENVIRONMENT || 'not detected');
+console.log('🎨 Render Environment:', process.env.RENDER || 'not detected');
+console.log('📡 All PORT env vars:', {
+    PORT: process.env.PORT,
+    SERVER_PORT: process.env.SERVER_PORT,
+    NODE_ENV: process.env.NODE_ENV
+});
 
 // Store active connections
 const activeConnections = new Map();
@@ -488,12 +495,19 @@ setInterval(() => {
 // Export for Vercel serverless
 export default app;
 
-// Start server (always in Railway)
-if (process.env.NODE_ENV !== 'production' || process.env.RAILWAY_ENVIRONMENT) {
-    app.listen(PORT, () => {
-        console.log(`🚀 Panquiz Proxy Server running on http://localhost:${PORT}`);
+// Start server (always for hosting services or development)
+const shouldStartServer = process.env.NODE_ENV !== 'production' || 
+                         process.env.RAILWAY_ENVIRONMENT || 
+                         process.env.RENDER || 
+                         process.env.PORT ||
+                         !process.env.VERCEL;
+
+if (shouldStartServer) {
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`🚀 Panquiz Proxy Server running on http://0.0.0.0:${PORT}`);
         console.log(`📂 Serving web interface from /public`);
         console.log(`🔗 API endpoints available at /api/*`);
+        console.log(`🌐 External URL will be provided by hosting service`);
     });
 
     // Graceful shutdown
