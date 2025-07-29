@@ -19,7 +19,12 @@ const PORT = process.env.PORT || 3000;
 const activeConnections = new Map();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+    origin: process.env.NODE_ENV === 'production' 
+        ? ['https://your-domain.vercel.app', 'https://your-domain.netlify.app', 'https://your-domain.railway.app']
+        : ['http://localhost:3000', 'http://127.0.0.1:3000'],
+    credentials: true
+}));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
