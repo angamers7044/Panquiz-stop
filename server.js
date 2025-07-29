@@ -335,25 +335,28 @@ setInterval(() => {
     }
 }, 60000); // Check every minute
 
-// Start server
-app.listen(PORT, () => {
-    console.log(`🚀 Panquiz Proxy Server running on http://localhost:${PORT}`);
-    console.log(`📂 Serving web interface from /public`);
-    console.log(`🔗 API endpoints available at /api/*`);
-});
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-    console.log('Received SIGTERM, shutting down gracefully...');
-    
-    // Close all WebSocket connections
-    for (const connection of activeConnections.values()) {
-        if (connection.ws) {
-            connection.ws.close();
-        }
-    }
-    
-    process.exit(0);
-});
-
+// Export for Vercel serverless
 export default app;
+
+// Start server only in development
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(PORT, () => {
+        console.log(`🚀 Panquiz Proxy Server running on http://localhost:${PORT}`);
+        console.log(`📂 Serving web interface from /public`);
+        console.log(`🔗 API endpoints available at /api/*`);
+    });
+
+    // Graceful shutdown
+    process.on('SIGTERM', () => {
+        console.log('Received SIGTERM, shutting down gracefully...');
+        
+        // Close all WebSocket connections
+        for (const connection of activeConnections.values()) {
+            if (connection.ws) {
+                connection.ws.close();
+            }
+        }
+        
+        process.exit(0);
+    });
+}
