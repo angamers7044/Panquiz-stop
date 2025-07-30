@@ -14,9 +14,19 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // Store active connections
 const activeConnections = new Map();
+
+// Enhanced logging for production
+const log = {
+    info: (msg) => console.log(`ℹ️  ${new Date().toISOString()} - ${msg}`),
+    error: (msg) => console.error(`❌ ${new Date().toISOString()} - ${msg}`),
+    medal: (player, msg) => console.log(`🏅 ${new Date().toISOString()} - [${player}] ${msg}`),
+    event: (player, msg) => console.log(`🔍 ${new Date().toISOString()} - [${player}] ${msg}`),
+    success: (msg) => console.log(`✅ ${new Date().toISOString()} - ${msg}`)
+};
 
 // Middleware
 app.use(cors());
@@ -103,7 +113,19 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
         connectionData.lastActivity = Date.now();
         
         try {
-            const parsedMessage = JSON.parse(message.toString().replace('\u001e', ''));
+            // Log ALL WebSocket messages to catch medal/results events
+            const rawMsg = message.toString();
+            console.log(`📨 [${playerName}] RAW WEBSOCKET: ${rawMsg}`);
+            
+            // Skip empty/heartbeat messages
+            if (rawMsg === "{}\u001e" || rawMsg.trim() === "{}") {
+                console.log(`💓 [${playerName}] Heartbeat/handshake message`);
+            }
+            
+            const parsedMessage = JSON.parse(rawMsg.replace('\u001e', ''));
+            
+            // Log ALL parsed WebSocket message structures
+            console.log(`📋 [${playerName}] PARSED WEBSOCKET:`, JSON.stringify(parsedMessage, null, 2));
 
             if (message.toString() === "{}\u001e") {
                 const playerJoined = {
@@ -112,7 +134,7 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
                     arguments: [playId, playerName]
                 };
                 ws.send(JSON.stringify(playerJoined) + '\u001e');
-                console.log(`Player ${playerName} joined game ${playId}`);
+                console.log(`🤝 Player ${playerName} joined game ${playId}`);
             }
 
             if (parsedMessage.type === 1 && parsedMessage.target === "ShowQuestion") {
@@ -120,7 +142,7 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
                 const rightAnswer = questionData.rightAnswer;
                 const maxAnswers = questionData.maxAnswers;
 
-                console.log(`Question received for ${playerName}, answering...`);
+                console.log(`❓ Question received for ${playerName}, answering...`);
 
                 const answerMapping = {};
                 for (let i = 0; i < maxAnswers; i++) {
@@ -140,17 +162,106 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
                     };
                     ws.send(JSON.stringify(answerMessage) + '\u001e');
                     connectionData.questionsAnswered++;
-                    console.log(`Answer sent for ${playerName}: ${mappedAnswer} (Total: ${connectionData.questionsAnswered})`);
+                    console.log(`✅ Answer sent for ${playerName}: ${mappedAnswer} (Total: ${connectionData.questionsAnswered})`);
+                }
+            }
+
+            // Handle ShowMedal event specifically
+            if (parsedMessage.type === 1 && parsedMessage.target === "ShowMedal") {
+                const rankingCode = parsedMessage.arguments[0];
+                
+                // Decode medal ranking: 0=3rd place, 1=2nd place, 2=1st place
+                const medalMapping = {
+                    0: { place: "3rd", emoji: "🥉", name: "Bronze Medal" },
+                    1: { place: "2nd", emoji: "🥈", name: "Silver Medal" },
+                    2: { place: "1st", emoji: "🥇", name: "Gold Medal" }
+                };
+                
+                const medal = medalMapping[rankingCode];
+                if (medal) {
+                    log.medal(playerName, `🏅 MEDAL AWARDED! ${medal.emoji} ${medal.name} (${medal.place} place)`);
+                    
+                    // Store medal data
+                    if (!connectionData.medals) connectionData.medals = [];
+                    connectionData.medals.push({
+                        event: "ShowMedal",
+                        rankingCode: rankingCode,
+                        place: medal.place,
+                        medalName: medal.name,
+                        emoji: medal.emoji,
+                        timestamp: new Date().toISOString(),
+                        playerName: playerName
+                    });
+                    
+                    // Update connection stats
+                    connectionData.medalsEarned = (connectionData.medalsEarned || 0) + 1;
+                    
+                    log.success(`🎉 [${playerName}] Earned ${medal.place} place! Total medals: ${connectionData.medalsEarned}`);
+                } else {
+                    log.medal(playerName, `🏅 UNKNOWN MEDAL RANKING: ${rankingCode}`);
+                }
+            }
+
+            // Check for other potential medal/results events
+            if (parsedMessage.type === 1) {
+                const target = parsedMessage.target;
+                
+                // Look for other potential medal/results related events
+                if (target && target !== "ShowMedal" && (
+                    target.includes('Result') || 
+                    target.includes('Medal') || 
+                    target.includes('Achievement') || 
+                    target.includes('Award') || 
+                    target.includes('Score') || 
+                    target.includes('End') || 
+                    target.includes('Finish') || 
+                    target.includes('Complete') ||
+                    target.includes('Summary') ||
+                    target.includes('Stats') ||
+                    target.includes('Leaderboard') ||
+                    target.includes('Ranking') ||
+                    target.includes('GameResult') ||
+                    target.includes('QuizResult') ||
+                    target.includes('MatchResult') ||
+                    target.includes('PlayerResult') ||
+                    target.includes('FinalScore') ||
+                    target.includes('GameOver') ||
+                    target.includes('QuizComplete')
+                )) {
+                    log.medal(playerName, `OTHER MEDAL EVENT: ${target}`);
+                    log.medal(playerName, `DATA: ${JSON.stringify(parsedMessage.arguments, null, 2)}`);
+                    
+                    // Store other medal-related data
+                    if (!connectionData.medalEvents) connectionData.medalEvents = [];
+                    connectionData.medalEvents.push({
+                        event: target,
+                        data: parsedMessage.arguments,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+                
+                // Log ALL events we haven't seen before
+                if (target !== "ShowQuestion" && target !== "PlayerDisconnected" && target !== "PlayerJoined" && target !== "ShowMedal") {
+                    log.event(playerName, `NEW EVENT: ${target}`);
+                    log.event(playerName, `ARGS: ${JSON.stringify(parsedMessage.arguments, null, 2)}`);
                 }
             }
 
             if (parsedMessage.type === 1 && parsedMessage.target === "PlayerDisconnected" && parsedMessage.arguments[0] === true) {
-                console.log(`Player ${playerName} disconnected from game`);
+                log.info(`👋 Player ${playerName} received disconnect signal - keeping connection open for medals`);
                 connectionData.connected = false;
-                ws.close();
+                
+                // Don't close immediately - medals might still come through WebSocket
+                // Close after a delay to capture any final medal events
+                setTimeout(() => {
+                    log.info(`🔌 [${playerName}] Closing WebSocket after medal capture delay`);
+                    if (ws.readyState === ws.OPEN) {
+                        ws.close();
+                    }
+                }, 10000); // Wait 10 seconds for medals
             }
         } catch (error) {
-            console.error('Message parsing error:', error);
+            console.error('❌ Message parsing error:', error);
         }
     });
 
@@ -305,6 +416,31 @@ app.get('/api/connections', (req, res) => {
     res.json(connections);
 });
 
+// Get medals for a connection
+app.get('/api/medals/:connectionId', (req, res) => {
+    try {
+        const { connectionId } = req.params;
+        const connectionData = activeConnections.get(connectionId);
+        
+        if (!connectionData) {
+            return res.status(404).json({ error: 'Connection not found' });
+        }
+        
+        res.json({
+            success: true,
+            medals: connectionData.medals || [],
+            medalEvents: connectionData.medalEvents || [],
+            medalsEarned: connectionData.medalsEarned || 0,
+            playerName: connectionData.playerName,
+            questionsAnswered: connectionData.questionsAnswered,
+            connected: connectionData.connected
+        });
+    } catch (error) {
+        log.error(`Medal retrieval error: ${error.message}`);
+        res.status(500).json({ error: 'Failed to retrieve medals' });
+    }
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
     res.json({ 
@@ -337,9 +473,16 @@ setInterval(() => {
 
 // Start server
 app.listen(PORT, () => {
-    console.log(`🚀 Panquiz Proxy Server running on http://localhost:${PORT}`);
-    console.log(`📂 Serving web interface from /public`);
-    console.log(`🔗 API endpoints available at /api/*`);
+    log.success(`🚀 Panquiz Proxy Server running on port ${PORT}`);
+    log.info(`📂 Environment: ${NODE_ENV}`);
+    if (NODE_ENV === 'development') {
+        log.info(`🔗 Local access: http://localhost:${PORT}`);
+    } else {
+        log.info(`🌐 Production deployment active on Render`);
+    }
+    log.success(`🔗 API endpoints available at /api/*`);
+    log.success('🎯 Ready to join Panquiz games and capture medals!');
+    log.info('🏅 Enhanced medal detection system enabled');
 });
 
 // Graceful shutdown
