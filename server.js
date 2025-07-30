@@ -48,49 +48,139 @@ async function validateMatchPin(pin) {
     const fetch = (await import('node-fetch')).default;
     const { URLSearchParams } = await import('url');
     
-    const url = "https://play.panquiz.com/api/v1/player/pin";
-    const headers = {
-        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-        "Accept": "*/*",
-        "Origin": "https://play.panquiz.com",
-        "Referer": "https://play.panquiz.com/",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
-        "X-Requested-With": "XMLHttpRequest"
-    };
-    
-    // Ensure proper formatting of the PIN parameter
-    const body = new URLSearchParams();
-    body.append('pinCode', pin.toString().trim());
-
-    console.log(`Validating PIN: ${pin}`);
-    console.log(`Request body: ${body.toString()}`);
+    const url = 'https://play.panquiz.com/api/v1/player/pin';
+    const formData = new URLSearchParams();
+    formData.append('pinCode', pin);
 
     try {
-        const response = await fetch(url, { method: 'POST', headers, body });
-        
-        console.log(`Response status: ${response.status}`);
-        
-        if (!response.ok) {
-            console.error(`HTTP error: ${response.status} ${response.statusText}`);
-            return null;
-        }
-        
-        const data = await response.json();
-        console.log('Response data:', data);
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': '*/*',
+                'Origin': 'https://play.panquiz.com',
+                'Referer': 'https://play.panquiz.com/',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            },
+            body: formData
+        });
 
-        if (data.playId) {
+        if (response.ok) {
+            const data = await response.json();
             return data.playId;
-        } else if (data.errorCode && data.errorCode !== 0) {
-            console.error(`Panquiz error: ${data.errorCode}`);
-            return null;
-        } else {
-            console.error('No playId in response');
-            return null;
         }
+        return null;
     } catch (error) {
         console.error('PIN validation error:', error);
         return null;
     }
+}
+
+// Function to fetch game/quiz data after PIN validation
+async function fetchGameData(playId) {
+    const fetch = (await import('node-fetch')).default;
+    
+    // Try various possible endpoints to get quiz data
+    const possibleEndpoints = [
+        `https://play.panquiz.com/api/v1/game/${playId}`,
+        `https://play.panquiz.com/api/v1/player/join/${playId}`,
+        `https://play.panquiz.com/api/v1/quiz/${playId}`,
+        `https://play.panquiz.com/api/v1/game/data/${playId}`,
+        `https://play.panquiz.com/api/v1/player/start/${playId}`
+    ];
+
+    for (const endpoint of possibleEndpoints) {
+        try {
+            console.log(`🔍 Trying endpoint: ${endpoint}`);
+            const response = await fetch(endpoint, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json, */*',
+                    'Origin': 'https://play.panquiz.com',
+                    'Referer': 'https://play.panquiz.com/',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log(`✅ Success from ${endpoint}:`, data);
+                
+                // Check if this response contains quiz data
+                if (data.quiz && data.quiz.questions) {
+                    console.log(`🎯 Found quiz data in ${endpoint}:`, {
+                        questions: data.quiz.questions.length,
+                        firstQuestion: data.quiz.questions[0]?.text?.substring(0, 50) + '...'
+                    });
+                    return data;
+                }
+                
+                // Also check if quiz data is at root level
+                if (data.questions) {
+                    console.log(`🎯 Found questions at root level in ${endpoint}:`, {
+                        questions: data.questions.length,
+                        firstQuestion: data.questions[0]?.text?.substring(0, 50) + '...'
+                    });
+                    return { quiz: { questions: data.questions } };
+                }
+            } else {
+                console.log(`❌ Failed ${endpoint}: ${response.status} ${response.statusText}`);
+            }
+        } catch (error) {
+            console.log(`❌ Error ${endpoint}:`, error.message);
+        }
+    }
+
+    // If GET requests don't work, try POST requests
+    for (const endpoint of possibleEndpoints) {
+        try {
+            console.log(`🔍 Trying POST endpoint: ${endpoint}`);
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json, */*',
+                    'Origin': 'https://play.panquiz.com',
+                    'Referer': 'https://play.panquiz.com/',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({ playId })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log(`✅ Success from POST ${endpoint}:`, data);
+                
+                // Check if this response contains quiz data
+                if (data.quiz && data.quiz.questions) {
+                    console.log(`🎯 Found quiz data in POST ${endpoint}:`, {
+                        questions: data.quiz.questions.length,
+                        firstQuestion: data.quiz.questions[0]?.text?.substring(0, 50) + '...'
+                    });
+                    return data;
+                }
+                
+                // Also check if quiz data is at root level
+                if (data.questions) {
+                    console.log(`🎯 Found questions at root level in POST ${endpoint}:`, {
+                        questions: data.questions.length,
+                        firstQuestion: data.questions[0]?.text?.substring(0, 50) + '...'
+                    });
+                    return { quiz: { questions: data.questions } };
+                }
+            } else {
+                console.log(`❌ Failed POST ${endpoint}: ${response.status} ${response.statusText}`);
+            }
+        } catch (error) {
+            console.log(`❌ Error POST ${endpoint}:`, error.message);
+        }
+    }
+
+    console.log('❌ No quiz data found in any endpoint');
+    return null;
 }
 
 // Enhanced WebSocket connection with event tracking
@@ -134,28 +224,7 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
                     arguments: parsedMessage.arguments ? parsedMessage.arguments.length + ' args' : 'no args'
                 });
                 
-                // Look for quiz data in any message
-                if (parsedMessage.arguments) {
-                    parsedMessage.arguments.forEach((arg, index) => {
-                        if (arg && typeof arg === 'object' && arg.quiz) {
-                            console.log(`🎯 Found quiz data in ${parsedMessage.target} arg[${index}]:`, {
-                                questions: arg.quiz.questions ? arg.quiz.questions.length + ' questions' : 'no questions',
-                                hasQuestions: !!arg.quiz.questions
-                            });
-                            
-                            // Store quiz data
-                            if (arg.quiz.questions) {
-                                connectionData.quizData = arg.quiz;
-                                console.log(`📚 Quiz questions stored for ${playerName}:`, 
-                                    arg.quiz.questions.map(q => ({
-                                        text: q.text ? q.text.substring(0, 50) + '...' : 'no text',
-                                        timer: q.timer || 'no timer'
-                                    }))
-                                );
-                            }
-                        }
-                    });
-                }
+
             }
 
             if (message.toString() === "{}\u001e") {
@@ -340,6 +409,12 @@ app.post('/api/join', async (req, res) => {
 
         console.log(`PIN validated: PlayID=${playId}`);
 
+        // Fetch game data to store for each connection
+        const gameData = await fetchGameData(playId);
+        if (!gameData) {
+            return res.status(500).json({ error: 'Impossibile recuperare i dati della partita' });
+        }
+
         // Negotiate SignalR connection
         const negotiation = await negotiateSignalRConnection();
         if (!negotiation) {
@@ -358,6 +433,15 @@ app.post('/api/join', async (req, res) => {
             playerName, 
             connectionId
         );
+
+        // Store quiz data for this connection
+        if (gameData && gameData.quiz) {
+            connectionData.quizData = gameData.quiz;
+            console.log(`📚 Quiz data stored for ${playerName}:`, {
+                questions: gameData.quiz.questions ? gameData.quiz.questions.length : 0,
+                firstQuestion: gameData.quiz.questions?.[0]?.text?.substring(0, 50) + '...'
+            });
+        }
 
         res.json({
             success: true,
@@ -390,6 +474,12 @@ app.post('/api/bulk-join', async (req, res) => {
             return res.status(400).json({ error: 'Codice PIN non valido' });
         }
 
+        // Fetch game data once for all bots
+        const gameData = await fetchGameData(playId);
+        if (!gameData) {
+            return res.status(500).json({ error: 'Impossibile recuperare i dati della partita' });
+        }
+
         const results = [];
         const errors = [];
 
@@ -413,6 +503,12 @@ app.post('/api/bulk-join', async (req, res) => {
                     botName, 
                     connectionId
                 );
+
+                // Store quiz data for this bot connection
+                if (gameData && gameData.quiz) {
+                    connectionData.quizData = gameData.quiz;
+                    console.log(`📚 Quiz data stored for bot ${botName}`);
+                }
 
                 results.push({
                     success: true,
