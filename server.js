@@ -157,7 +157,7 @@ async function fetchGameData(playId) {
 }
 
 // Enhanced WebSocket connection with event tracking
-async function createEnhancedWebSocketConnection(websocketUrl, playId, playerName, connectionId) {
+async function createEnhancedWebSocketConnection(websocketUrl, playId, playerName, connectionId, gameData = null) {
     const WebSocket = (await import('ws')).default;
     const ws = new WebSocket(websocketUrl);
     
@@ -170,7 +170,9 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
         lastActivity: Date.now(),
         ws: ws,
         isMainPlayer: true, // This is the main player, not a bot
-        autoAnswer: true    // Default to auto answer, can be changed via API
+        autoAnswer: true,   // Default to auto answer, can be changed via API
+        gameData: gameData,
+        quizQuestions: gameData?.quiz?.questions || []
     };
     
     activeConnections.set(connectionId, connectionData);
@@ -220,15 +222,25 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
                     maxAnswers: maxAnswers
                 });
 
+                // Get question data from saved quiz data
+                const questionNumber = connectionData.questionsAnswered;
+                const savedQuestion = connectionData.quizQuestions[questionNumber];
+                
                 // Store question for manual answer mode
                 connectionData.currentQuestion = {
-                    question: questionData.question || 'Domanda in arrivo...',
-                    answers: questionData.answers || [],
+                    question: savedQuestion?.text || questionData.question || 'Domanda in arrivo...',
+                    answers: savedQuestion?.answers || questionData.answers || [],
                     rightAnswer: rightAnswer,
-                    maxAnswers: maxAnswers,
-                    questionNumber: connectionData.questionsAnswered + 1,
+                    maxAnswers: savedQuestion?.maxAnswers || maxAnswers,
+                    questionNumber: questionNumber + 1,
                     timestamp: Date.now()
                 };
+                
+                console.log(`📝 Question ${questionNumber + 1}:`, {
+                    text: connectionData.currentQuestion.question?.substring(0, 50) + '...',
+                    maxAnswers: connectionData.currentQuestion.maxAnswers,
+                    hasAnswers: connectionData.currentQuestion.answers.length > 0
+                });
 
                 const answerMapping = {};
                 for (let i = 0; i < maxAnswers; i++) {
@@ -466,7 +478,8 @@ app.post('/api/join', async (req, res) => {
             negotiation.websocketUrl, 
             playId, 
             playerName, 
-            connectionId
+            connectionId,
+            gameData
         );
 
         // Store quiz data for this connection
@@ -538,14 +551,12 @@ app.post('/api/bulk-join', async (req, res) => {
                     negotiation.websocketUrl, 
                     playId, 
                     botName, 
-                    connectionId
+                    connectionId,
+                    gameData
                 );
 
-                // Store quiz data for this bot connection
-                if (gameData && gameData.quiz) {
-                    connectionData.quizData = gameData.quiz;
-                    console.log(`📚 Quiz data stored for bot ${botName}`);
-                }
+                // Quiz data already stored in createEnhancedWebSocketConnection
+                console.log(`📚 Quiz data stored for bot ${botName}`);
 
                 results.push({
                     success: true,
@@ -807,11 +818,17 @@ async function reconnectBot(connectionId, newPlayId, playerName, newPin) {
             return false;
         }
         
+        // Fetch new game data for the new playId
+        const gameData = await fetchGameData(newPlayId);
+        if (!gameData) {
+            console.log('⚠️ No quiz data found for reconnection, but continuing...');
+        }
+        
         // Remove old connection data
         activeConnections.delete(connectionId);
         
         // Create new WebSocket connection with same connectionId
-        await createEnhancedWebSocketConnection(negotiation.websocketUrl, newPlayId, playerName, connectionId);
+        await createEnhancedWebSocketConnection(negotiation.websocketUrl, newPlayId, playerName, connectionId, gameData);
         console.log(`✅ ${playerName} successfully reconnected to game ${newPlayId}`);
         return true;
         
