@@ -578,8 +578,9 @@
                     elements.connectionStatus.style.color = '#dc3545';
                     elements.gameStatus.textContent = 'Disconnesso dalla partita - Tentativo riconnessione...';
                     
-                    // Log disconnection but don't auto-reconnect
-                    console.log('🔄 Main player disconnected');
+                    // Attempt automatic reconnection if we have current game info
+                    console.log('🔄 Main player disconnected, checking for reconnection...');
+                    await checkCurrentGameInfo(); // This will trigger reconnection but keep PIN intact
                     return;
                 }
 
@@ -880,10 +881,25 @@
             }
         });
 
-        // Function to check current game info (no auto PIN update)
+        // Function to check current game info and trigger reconnections (without changing PIN field)
         async function checkCurrentGameInfo() {
-            // This function can be called manually if needed, but doesn't auto-update anything
-            console.log('Game info check called (no auto-updates)');
+            try {
+                const response = await fetch(`${API_BASE}/current-game`);
+                const data = await response.json();
+                
+                if (data.success && data.gameInfo && data.gameInfo.playId) {
+                    // Update global PlayID if we have it (but DON'T change PIN field)
+                    if (data.gameInfo.playId !== currentPlayId) {
+                        currentPlayId = data.gameInfo.playId;
+                        console.log(`🎮 PlayID updated: ${currentPlayId}`);
+                        
+                        // Trigger bot reconnection (but keep user's PIN intact)
+                        await reconnectAllBots();
+                    }
+                }
+            } catch (error) {
+                console.log('Current game info check failed:', error.message);
+            }
         }
 
         // Function to check and reconnect main player if needed
@@ -996,10 +1012,10 @@
             }
         }
 
-        // Auto refresh bots every 30 seconds (no PIN auto-update)
+        // Auto refresh bots and check for game updates (without changing PIN field)
         setInterval(async () => {
             if (currentPlayId) {
-                // Refresh bots status only
+                // Refresh bots status
                 try {
                     const response = await fetch(`${API_BASE}/connections/game/${currentPlayId}`);
                     const data = await response.json();
@@ -1015,7 +1031,9 @@
                     console.log('Auto refresh failed:', error);
                 }
             }
-        }, 30000);
+            // Check for game updates but DON'T auto-update PIN field
+            await checkCurrentGameInfo();
+        }, 15000);
 
         // Handle page unload
         window.addEventListener('beforeunload', () => {
