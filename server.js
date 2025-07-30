@@ -140,7 +140,22 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
                 const rightAnswer = questionData.rightAnswer;
                 const maxAnswers = questionData.maxAnswers;
 
-                console.log(`Question received for ${playerName}, answering...`);
+                console.log(`Question received for ${playerName}:`, {
+                    question: questionData.question,
+                    answers: questionData.answers,
+                    rightAnswer: rightAnswer,
+                    maxAnswers: maxAnswers
+                });
+
+                // Store question for manual answer mode
+                connectionData.currentQuestion = {
+                    question: questionData.question || 'Domanda non disponibile',
+                    answers: questionData.answers || [],
+                    rightAnswer: rightAnswer,
+                    maxAnswers: maxAnswers,
+                    questionNumber: connectionData.questionsAnswered + 1,
+                    timestamp: Date.now()
+                };
 
                 const answerMapping = {};
                 for (let i = 0; i < maxAnswers; i++) {
@@ -151,6 +166,7 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
                 }
 
                 const mappedAnswer = answerMapping[rightAnswer];
+                connectionData.correctAnswerIndex = parseInt(mappedAnswer);
 
                 if (mappedAnswer !== undefined) {
                     const answerMessage = {

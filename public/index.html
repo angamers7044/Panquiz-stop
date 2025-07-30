@@ -318,11 +318,170 @@
 
 
 
+        /* Tab Navigation */
+        .tab-navigation {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e1e1e1;
+        }
+
+        .tab-btn {
+            background: none;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #6c757d;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .tab-btn.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .tab-btn:hover {
+            color: #667eea;
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Answer Mode */
+        .answer-mode-selector {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: rgba(102, 126, 234, 0.1);
+            border-radius: 10px;
+        }
+
+        .answer-mode-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .question-area {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .question-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e1e1e1;
+        }
+
+        .question-timer {
+            font-family: monospace;
+            font-size: 16px;
+            font-weight: bold;
+            color: #dc3545;
+        }
+
+        .question-text {
+            font-size: 18px;
+            font-weight: 500;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .answer-options {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .answer-option {
+            padding: 15px 20px;
+            border: 2px solid #e1e1e1;
+            border-radius: 10px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 16px;
+            text-align: left;
+            position: relative;
+        }
+
+        .answer-option:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+        }
+
+        .answer-option.correct {
+            border-color: #28a745;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            font-weight: bold;
+        }
+
+        .answer-option.selected {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .answer-option.disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .answer-feedback {
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+            font-weight: 500;
+            text-align: center;
+        }
+
+        .answer-feedback.correct {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .answer-feedback.incorrect {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
         @media (max-width: 480px) {
             .container {
                 margin: 10px;
                 padding: 30px 25px;
                 min-width: auto;
+            }
+            
+            .answer-options {
+                grid-template-columns: 1fr;
+            }
+            
+            .tab-btn {
+                padding: 8px 12px;
+                font-size: 12px;
             }
             
             .stats {
@@ -356,27 +515,67 @@
         <div class="status" id="status"></div>
         
         <div class="game-info" id="gameInfo">
-            <h3>🎮 Stato della Partita</h3>
-            <div id="gameStatus">Connesso e pronto!</div>
-            <div class="stats">
-                <div class="stat">
-                    <div class="stat-value" id="questionsAnswered">0</div>
-                    <div class="stat-label">Domande Risposte</div>
+            <!-- Tab Navigation -->
+            <div class="tab-navigation">
+                <button class="tab-btn active" onclick="switchTab('stats')">📊 Statistiche</button>
+                <button class="tab-btn" onclick="switchTab('answer')">🎯 Answer</button>
+            </div>
+
+            <!-- Stats Tab -->
+            <div id="statsTab" class="tab-content active">
+                <h3>🎮 Stato della Partita</h3>
+                <div id="gameStatus">Connesso e pronto!</div>
+                <div class="stats">
+                    <div class="stat">
+                        <div class="stat-value" id="questionsAnswered">0</div>
+                        <div class="stat-label">Domande Risposte</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" id="connectionStatus">●</div>
+                        <div class="stat-label">Connessione</div>
+                    </div>
                 </div>
-                <div class="stat">
-                    <div class="stat-value" id="connectionStatus">●</div>
-                    <div class="stat-label">Connessione</div>
+                <button class="btn" id="disconnectBtn" style="margin-top: 15px; background: #dc3545;">
+                    Disconnetti
+                </button>
+                <button class="btn" onclick="reconnectMainPlayer()" style="margin-top: 10px; background: #28a745;">
+                    🔄 Riconnetti Giocatore
+                </button>
+                <button class="btn" onclick="clearSession(); showStatus('🗑️ Sessione cancellata', 'info');" style="margin-top: 10px; background: #6c757d;">
+                    🗑️ Cancella Sessione
+                </button>
+            </div>
+
+            <!-- Answer Tab -->
+            <div id="answerTab" class="tab-content">
+                <h3>🎯 Answer Mode</h3>
+                
+                <div class="answer-mode-selector">
+                    <label class="answer-mode-label">
+                        <input type="checkbox" id="autoAnswerMode" checked>
+                        🤖 Auto Answer (risposta automatica)
+                    </label>
+                </div>
+
+                <div class="question-area" id="questionArea" style="display: none;">
+                    <div class="question-header">
+                        <h4 id="questionTitle">Domanda in arrivo...</h4>
+                        <div class="question-timer" id="questionTimer">⏱️ --:--</div>
+                    </div>
+                    
+                    <div class="question-text" id="questionText">
+                        In attesa della prossima domanda...
+                    </div>
+                    
+                    <div class="answer-options" id="answerOptions">
+                        <!-- Answer buttons will be generated here -->
+                    </div>
+                    
+                    <div class="answer-feedback" id="answerFeedback">
+                        <!-- Feedback after answering -->
+                    </div>
                 </div>
             </div>
-            <button class="btn" id="disconnectBtn" style="margin-top: 15px; background: #dc3545;">
-                Disconnetti
-            </button>
-            <button class="btn" onclick="reconnectMainPlayer()" style="margin-top: 10px; background: #28a745;">
-                🔄 Riconnetti Giocatore
-            </button>
-            <button class="btn" onclick="clearSession(); showStatus('🗑️ Sessione cancellata', 'info');" style="margin-top: 10px; background: #6c757d;">
-                🗑️ Cancella Sessione
-            </button>
         </div>
 
         <div class="bot-manager-section" id="botManagerSection">
@@ -511,6 +710,136 @@
         function clearSession() {
             deleteCookie('panquiz_session');
             console.log('🗑️ Session cleared');
+        }
+
+        // Tab management
+        function switchTab(tabName) {
+            // Remove active class from all tabs and contents
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            // Add active class to clicked tab and corresponding content
+            event.target.classList.add('active');
+            document.getElementById(tabName + 'Tab').classList.add('active');
+        }
+
+        // Answer mode management
+        let currentQuestion = null;
+        let questionStartTime = null;
+        let autoAnswerEnabled = true;
+
+        function toggleAnswerMode() {
+            autoAnswerEnabled = document.getElementById('autoAnswerMode').checked;
+            console.log('Auto answer mode:', autoAnswerEnabled ? 'enabled' : 'disabled');
+        }
+
+        function showQuestion(questionData) {
+            const questionArea = document.getElementById('questionArea');
+            const questionTitle = document.getElementById('questionTitle');
+            const questionText = document.getElementById('questionText');
+            const answerOptions = document.getElementById('answerOptions');
+            const answerFeedback = document.getElementById('answerFeedback');
+
+            currentQuestion = questionData;
+            questionStartTime = Date.now();
+
+            // Show question area
+            questionArea.style.display = 'block';
+            
+            // Set question content
+            questionTitle.textContent = `Domanda ${questionData.questionNumber || '?'}`;
+            questionText.textContent = questionData.question || 'Testo domanda non disponibile';
+
+            // Clear previous feedback
+            answerFeedback.innerHTML = '';
+            answerFeedback.className = 'answer-feedback';
+
+            // Generate answer options
+            answerOptions.innerHTML = '';
+            
+            if (questionData.answers) {
+                questionData.answers.forEach((answer, index) => {
+                    const option = document.createElement('button');
+                    option.className = 'answer-option';
+                    option.textContent = answer;
+                    option.onclick = () => selectAnswer(index);
+                    
+                    // Highlight correct answer in green if not auto mode
+                    if (!autoAnswerEnabled && index === questionData.correctIndex) {
+                        option.classList.add('correct');
+                    }
+                    
+                    answerOptions.appendChild(option);
+                });
+            }
+
+            // Start timer
+            startQuestionTimer();
+
+            // Auto answer if enabled
+            if (autoAnswerEnabled && questionData.correctIndex !== undefined) {
+                setTimeout(() => {
+                    selectAnswer(questionData.correctIndex, true);
+                }, 1000); // Wait 1 second then auto-answer
+            }
+        }
+
+        function selectAnswer(selectedIndex, isAuto = false) {
+            const options = document.querySelectorAll('.answer-option');
+            const answerFeedback = document.getElementById('answerFeedback');
+            
+            // Disable all options
+            options.forEach(option => option.classList.add('disabled'));
+            
+            // Mark selected option
+            if (options[selectedIndex]) {
+                options[selectedIndex].classList.add('selected');
+            }
+
+            // Check if correct
+            const isCorrect = selectedIndex === currentQuestion.correctIndex;
+            
+            // Show feedback
+            if (isCorrect) {
+                answerFeedback.textContent = isAuto ? '🤖 Risposta automatica corretta!' : '✅ Risposta corretta!';
+                answerFeedback.className = 'answer-feedback correct';
+            } else {
+                answerFeedback.textContent = isAuto ? '🤖 Risposta automatica sbagliata' : '❌ Risposta sbagliata';
+                answerFeedback.className = 'answer-feedback incorrect';
+            }
+
+            // Send answer to server (keeping existing logic)
+            if (currentConnection) {
+                // This would integrate with existing answer sending logic
+                console.log(`Answer selected: ${selectedIndex} (${isCorrect ? 'correct' : 'incorrect'})`);
+            }
+
+            // Hide question after 3 seconds
+            setTimeout(() => {
+                document.getElementById('questionArea').style.display = 'none';
+            }, 3000);
+        }
+
+        function startQuestionTimer() {
+            const timer = document.getElementById('questionTimer');
+            const updateTimer = () => {
+                if (!questionStartTime) return;
+                
+                const elapsed = Math.floor((Date.now() - questionStartTime) / 1000);
+                const minutes = Math.floor(elapsed / 60);
+                const seconds = elapsed % 60;
+                timer.textContent = `⏱️ ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            };
+            
+            // Update immediately and then every second
+            updateTimer();
+            const interval = setInterval(() => {
+                if (document.getElementById('questionArea').style.display === 'none') {
+                    clearInterval(interval);
+                    return;
+                }
+                updateTimer();
+            }, 1000);
         }
         
         // Try to restore session automatically
@@ -939,6 +1268,9 @@
         });
 
         elements.disconnectBtn.addEventListener('click', disconnect);
+        
+        // Answer mode checkbox listener
+        document.getElementById('autoAnswerMode').addEventListener('change', toggleAnswerMode);
 
         // Bot management event listeners
         document.getElementById('generateBotsBtn').addEventListener('click', generateBotNames);
