@@ -831,9 +831,9 @@
         <div class="game-info" id="gameInfo">
             <!-- Tab Navigation -->
             <div class="tab-navigation">
-                <button class="tab-btn active" onclick="switchTab('stats')">📊 Statistiche</button>
-                <button class="tab-btn" onclick="switchTab('answer')">🎯 Answer</button>
-                <button class="tab-btn" onclick="switchTab('results')">🏆 Risultati</button>
+                <button class="tab-btn active" onclick="switchTab('stats'); return false;">📊 Statistiche</button>
+                <button class="tab-btn" onclick="switchTab('answer'); return false;">🎯 Answer</button>
+                <button class="tab-btn" onclick="switchTab('results'); return false;">🏆 Risultati</button>
             </div>
 
             <!-- Stats Tab -->
@@ -1073,13 +1073,28 @@
 
         // Tab management
         function switchTab(tabName) {
+            console.log(`🔄 Switching to tab: ${tabName}`);
+            
             // Remove active class from all tabs and contents
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
             
-            // Add active class to clicked tab and corresponding content
-            event.target.classList.add('active');
-            document.getElementById(tabName + 'Tab').classList.add('active');
+            // Find and activate the correct tab button
+            const tabButtons = document.querySelectorAll('.tab-btn');
+            tabButtons.forEach(btn => {
+                if (btn.textContent.includes('Statistiche') && tabName === 'stats') btn.classList.add('active');
+                if (btn.textContent.includes('Answer') && tabName === 'answer') btn.classList.add('active');
+                if (btn.textContent.includes('Risultati') && tabName === 'results') btn.classList.add('active');
+            });
+            
+            // Activate the corresponding content
+            const tabContent = document.getElementById(tabName + 'Tab');
+            if (tabContent) {
+                tabContent.classList.add('active');
+                console.log(`✅ Tab ${tabName} activated successfully`);
+            } else {
+                console.error(`❌ Tab content ${tabName}Tab not found`);
+            }
         }
 
         // Answer mode management
@@ -1298,10 +1313,8 @@
             // Update final stats
             finalQuestions.textContent = questionsCount;
             
-            // Auto-switch to results tab
-            switchTab('results');
-            
-            showStatus(`🏆 ${medal.positionName.charAt(0).toUpperCase() + medal.positionName.slice(1)} posto conquistato!`, 'success');
+            // Don't auto-switch tabs, just show notification
+            showStatus(`🏆 ${medal.positionName.charAt(0).toUpperCase() + medal.positionName.slice(1)} posto conquistato! Vai su Risultati per vedere.`, 'success');
         }
 
         function showNoMedal() {
@@ -1357,10 +1370,12 @@
             console.log(`📚 Quiz preview loaded: ${questions.length} questions`);
         }
 
-        // Auto-load quiz data when switching to answer tab
+        // Auto-load quiz data when switching to answer tab (once per session)
+        let quizDataLoaded = false;
         function checkForQuizData() {
-            if (currentConnection && document.getElementById('answerTab').classList.contains('active')) {
+            if (currentConnection && document.getElementById('answerTab').classList.contains('active') && !quizDataLoaded) {
                 loadQuizData();
+                quizDataLoaded = true; // Load only once to avoid interference
             }
         }
         
@@ -1793,6 +1808,35 @@
         
         // Answer mode checkbox listener
         document.getElementById('autoAnswerMode').addEventListener('change', toggleAnswerMode);
+        
+        // Tab navigation event listeners for mobile compatibility
+        document.addEventListener('DOMContentLoaded', () => {
+            const tabButtons = document.querySelectorAll('.tab-btn');
+            tabButtons.forEach((btn, index) => {
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    const tabNames = ['stats', 'answer', 'results'];
+                    const tabName = tabNames[index];
+                    
+                    console.log(`📱 Mobile tab click: ${tabName}`);
+                    switchTab(tabName);
+                });
+                
+                // Also handle touch events for mobile
+                btn.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    const tabNames = ['stats', 'answer', 'results'];
+                    const tabName = tabNames[index];
+                    
+                    console.log(`👆 Touch tab: ${tabName}`);
+                    switchTab(tabName);
+                });
+            });
+        });
 
         // Bot management event listeners
         document.getElementById('generateBotsBtn').addEventListener('click', generateBotNames);
