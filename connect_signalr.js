@@ -78,8 +78,15 @@ export function establishWebSocketConnection(websocketUrl, playId, playerName) {
         }
 
         if (parsedMessage.type === 1 && parsedMessage.target === "PlayerDisconnected" && parsedMessage.arguments[0] === true) {
-            console.log('👋 Player disconnected');
-            ws.close();
+            console.log('👋 Player disconnected - keeping connection open for medals');
+            
+            // Don't close immediately - medals might still come through WebSocket
+            setTimeout(() => {
+                console.log('🔌 Closing WebSocket after medal capture delay');
+                if (ws.readyState === ws.OPEN) {
+                    ws.close();
+                }
+            }, 10000); // Wait 10 seconds for medals
         }
     });
 

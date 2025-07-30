@@ -113,13 +113,19 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
         connectionData.lastActivity = Date.now();
         
         try {
-            // Log ALL messages to catch medal/results events
-            console.log(`📨 [${playerName}] RAW MESSAGE: ${message.toString()}`);
+            // Log ALL WebSocket messages to catch medal/results events
+            const rawMsg = message.toString();
+            console.log(`📨 [${playerName}] RAW WEBSOCKET: ${rawMsg}`);
             
-            const parsedMessage = JSON.parse(message.toString().replace('\u001e', ''));
+            // Skip empty/heartbeat messages
+            if (rawMsg === "{}\u001e" || rawMsg.trim() === "{}") {
+                console.log(`💓 [${playerName}] Heartbeat/handshake message`);
+            }
             
-            // Log parsed message structure
-            console.log(`📋 [${playerName}] PARSED MESSAGE:`, JSON.stringify(parsedMessage, null, 2));
+            const parsedMessage = JSON.parse(rawMsg.replace('\u001e', ''));
+            
+            // Log ALL parsed WebSocket message structures
+            console.log(`📋 [${playerName}] PARSED WEBSOCKET:`, JSON.stringify(parsedMessage, null, 2));
 
             if (message.toString() === "{}\u001e") {
                 const playerJoined = {
@@ -206,9 +212,17 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
             }
 
             if (parsedMessage.type === 1 && parsedMessage.target === "PlayerDisconnected" && parsedMessage.arguments[0] === true) {
-                console.log(`👋 Player ${playerName} disconnected from game`);
+                log.info(`👋 Player ${playerName} received disconnect signal - keeping connection open for medals`);
                 connectionData.connected = false;
-                ws.close();
+                
+                // Don't close immediately - medals might still come through WebSocket
+                // Close after a delay to capture any final medal events
+                setTimeout(() => {
+                    log.info(`🔌 [${playerName}] Closing WebSocket after medal capture delay`);
+                    if (ws.readyState === ws.OPEN) {
+                        ws.close();
+                    }
+                }, 10000); // Wait 10 seconds for medals
             }
         } catch (error) {
             console.error('❌ Message parsing error:', error);
