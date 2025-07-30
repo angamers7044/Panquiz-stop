@@ -166,12 +166,32 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
                 }
             }
 
-            // Check for potential medal/results events
+            // Handle ShowMedal event specifically
+            if (parsedMessage.type === 1 && parsedMessage.target === "ShowMedal") {
+                const medalData = parsedMessage.arguments[0];
+                log.medal(playerName, `🏅 MEDAL AWARDED! Medal ID: ${medalData}`);
+                
+                // Store medal data
+                if (!connectionData.medals) connectionData.medals = [];
+                connectionData.medals.push({
+                    event: "ShowMedal",
+                    medalId: medalData,
+                    timestamp: new Date().toISOString(),
+                    playerName: playerName
+                });
+                
+                // Update connection stats
+                connectionData.medalsEarned = (connectionData.medalsEarned || 0) + 1;
+                
+                log.success(`🎉 [${playerName}] Total medals earned: ${connectionData.medalsEarned}`);
+            }
+
+            // Check for other potential medal/results events
             if (parsedMessage.type === 1) {
                 const target = parsedMessage.target;
                 
-                // Look for potential medal/results related events
-                if (target && (
+                // Look for other potential medal/results related events
+                if (target && target !== "ShowMedal" && (
                     target.includes('Result') || 
                     target.includes('Medal') || 
                     target.includes('Achievement') || 
@@ -192,12 +212,12 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
                     target.includes('GameOver') ||
                     target.includes('QuizComplete')
                 )) {
-                    log.medal(playerName, `MEDAL/RESULTS EVENT: ${target}`);
+                    log.medal(playerName, `OTHER MEDAL EVENT: ${target}`);
                     log.medal(playerName, `DATA: ${JSON.stringify(parsedMessage.arguments, null, 2)}`);
                     
-                    // Store medal data for later retrieval
-                    if (!connectionData.medals) connectionData.medals = [];
-                    connectionData.medals.push({
+                    // Store other medal-related data
+                    if (!connectionData.medalEvents) connectionData.medalEvents = [];
+                    connectionData.medalEvents.push({
                         event: target,
                         data: parsedMessage.arguments,
                         timestamp: new Date().toISOString()
@@ -205,7 +225,7 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
                 }
                 
                 // Log ALL events we haven't seen before
-                if (target !== "ShowQuestion" && target !== "PlayerDisconnected" && target !== "PlayerJoined") {
+                if (target !== "ShowQuestion" && target !== "PlayerDisconnected" && target !== "PlayerJoined" && target !== "ShowMedal") {
                     log.event(playerName, `NEW EVENT: ${target}`);
                     log.event(playerName, `ARGS: ${JSON.stringify(parsedMessage.arguments, null, 2)}`);
                 }

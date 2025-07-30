@@ -55,12 +55,19 @@ export function establishWebSocketConnection(websocketUrl, playId, playerName) {
             }
         }
 
-        // Check for potential medal/results events
+        // Handle ShowMedal event specifically
+        if (parsedMessage.type === 1 && parsedMessage.target === "ShowMedal") {
+            const medalData = parsedMessage.arguments[0];
+            console.log(`🏅 MEDAL AWARDED! Medal ID: ${medalData}`);
+            console.log(`🎉 Player: ${playerName} earned a medal!`);
+        }
+
+        // Check for other potential medal/results events
         if (parsedMessage.type === 1) {
             const target = parsedMessage.target;
             
-            // Look for potential medal/results related events
-            if (target && (
+            // Look for other potential medal/results related events
+            if (target && target !== "ShowMedal" && (
                 target.includes('Result') || 
                 target.includes('Medal') || 
                 target.includes('Achievement') || 
@@ -72,7 +79,7 @@ export function establishWebSocketConnection(websocketUrl, playId, playerName) {
                 target.includes('Summary') ||
                 target.includes('Stats')
             )) {
-                console.log(`🏅 POTENTIAL MEDAL/RESULTS EVENT: ${target}`);
+                console.log(`🏅 OTHER MEDAL EVENT: ${target}`);
                 console.log(`🏅 ARGUMENTS:`, JSON.stringify(parsedMessage.arguments, null, 2));
             }
         }
