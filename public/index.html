@@ -383,6 +383,97 @@
             font-weight: 500;
         }
 
+        /* Answer Buttons Styles */
+        .answer-options {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        .answer-btn {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 16px;
+            text-align: left;
+        }
+
+        .answer-btn:hover:not(:disabled) {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+        }
+
+        .answer-btn.correct {
+            border-color: #28a745;
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+        }
+
+        .answer-letter {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 35px;
+            height: 35px;
+            background: #667eea;
+            color: white;
+            border-radius: 50%;
+            font-weight: bold;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+
+        .answer-btn.correct .answer-letter {
+            background: #28a745;
+        }
+
+        .answer-text {
+            flex: 1;
+            font-size: 16px;
+        }
+
+        .correct-indicator {
+            color: #28a745;
+            font-size: 20px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        .answer-result {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .answer-result.correct {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+
+        .answer-result.incorrect {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        .result-icon {
+            font-size: 20px;
+        }
+
+        .result-text {
+            font-size: 16px;
+        }
+
         /* Quiz Preview Styles */
         .quiz-preview {
             background: rgba(255, 255, 255, 0.9);
@@ -1175,7 +1266,26 @@
             
             // Set question content
             questionTitle.textContent = `Domanda ${questionData.questionNumber || '?'}`;
-            questionText.textContent = questionData.question || 'Testo domanda non disponibile';
+                                questionText.textContent = questionData.question || 'Testo domanda non disponibile';
+                    
+                    // Create answer buttons A, B, C, D
+                    const answerOptions = document.getElementById('answerOptions');
+                    const answers = questionData.answers || ['Risposta A', 'Risposta B', 'Risposta C', 'Risposta D'];
+                    const correctIndex = questionData.correctAnswerIndex;
+                    
+                    answerOptions.innerHTML = answers.map((answer, index) => {
+                        const letter = ['A', 'B', 'C', 'D'][index];
+                        const isCorrect = index === correctIndex;
+                        const buttonClass = isCorrect ? 'answer-btn correct' : 'answer-btn';
+                        
+                        return `
+                            <button class="${buttonClass}" onclick="sendManualAnswer(${index})" data-answer="${index}">
+                                <span class="answer-letter">${letter}</span>
+                                <span class="answer-text">${answer}</span>
+                                ${isCorrect ? '<span class="correct-indicator">✓</span>' : ''}
+                            </button>
+                        `;
+                    }).join('');
 
             // Clear previous feedback
             answerFeedback.innerHTML = '';
@@ -1410,6 +1520,58 @@
             `).join('');
             
             console.log(`📚 Quiz preview loaded: ${questions.length} questions`);
+        }
+
+        // Send manual answer function
+        async function sendManualAnswer(answerIndex) {
+            if (!currentConnectionId) {
+                showError('Nessuna connessione attiva');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/answer/${currentConnectionId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ answerIndex })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Show feedback
+                    const answerFeedback = document.getElementById('answerFeedback');
+                    const letter = result.answerLetter;
+                    const wasCorrect = result.wasCorrect;
+                    const correctLetter = ['A', 'B', 'C', 'D'][result.correctAnswer];
+                    
+                    answerFeedback.innerHTML = `
+                        <div class="answer-result ${wasCorrect ? 'correct' : 'incorrect'}">
+                            <span class="result-icon">${wasCorrect ? '✅' : '❌'}</span>
+                            <span class="result-text">
+                                Hai scelto: <strong>${letter}</strong> 
+                                ${wasCorrect ? '(Corretto!)' : `(Sbagliato! Risposta corretta: ${correctLetter})`}
+                            </span>
+                        </div>
+                    `;
+                    
+                    // Disable all answer buttons
+                    const answerButtons = document.querySelectorAll('.answer-btn');
+                    answerButtons.forEach(btn => {
+                        btn.disabled = true;
+                        btn.style.opacity = '0.6';
+                    });
+                    
+                    console.log(`📝 Answer sent: ${letter} (${wasCorrect ? 'Correct' : 'Incorrect'})`);
+                } else {
+                    showError(result.error || 'Errore nell\'invio della risposta');
+                }
+            } catch (error) {
+                console.error('Error sending manual answer:', error);
+                showError('Errore di connessione nell\'invio della risposta');
+            }
         }
 
         // Auto-load quiz data when switching to answer tab (once per session)

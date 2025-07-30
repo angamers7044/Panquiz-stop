@@ -222,8 +222,8 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
 
                 // Store question for manual answer mode
                 connectionData.currentQuestion = {
-                    question: questionData.question || 'Domanda non disponibile',
-                    answers: questionData.answers || [],
+                    question: questionData.question || 'Domanda in arrivo...',
+                    answers: questionData.answers || ['Risposta A', 'Risposta B', 'Risposta C', 'Risposta D'],
                     rightAnswer: rightAnswer,
                     maxAnswers: maxAnswers,
                     questionNumber: connectionData.questionsAnswered + 1,
@@ -240,6 +240,9 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
 
                 const mappedAnswer = answerMapping[rightAnswer];
                 connectionData.correctAnswerIndex = parseInt(mappedAnswer);
+                
+                // Add correct answer to current question data
+                connectionData.currentQuestion.correctAnswerIndex = parseInt(mappedAnswer);
 
                 // Only auto-answer if auto answer mode is enabled
                 if (mappedAnswer !== undefined && connectionData.autoAnswer) {
@@ -369,6 +372,55 @@ app.post('/api/validate-pin', async (req, res) => {
     }
 });
 
+// Send manual answer endpoint
+app.post('/api/answer/:connectionId', (req, res) => {
+    try {
+        const { connectionId } = req.params;
+        const { answerIndex } = req.body; // 0=A, 1=B, 2=C, 3=D
+        const connectionData = activeConnections.get(connectionId);
+        
+        if (!connectionData) {
+            return res.status(404).json({ error: 'Connection not found' });
+        }
+        
+        if (!connectionData.currentQuestion) {
+            return res.status(400).json({ error: 'No current question available' });
+        }
+        
+        const ws = connectionData.ws;
+        const playId = connectionData.playId;
+        
+        if (ws && ws.readyState === ws.OPEN) {
+            const answerMessage = {
+                type: 1,
+                target: "AnswerGivenFromPlayer",
+                arguments: [playId, answerIndex.toString(), 500]
+            };
+            
+            ws.send(JSON.stringify(answerMessage) + '\u001e');
+            
+            // Store the chosen answer
+            connectionData.lastChosenAnswer = answerIndex;
+            connectionData.questionsAnswered++;
+            
+            console.log(`✅ Manual answer sent for ${connectionData.playerName}: ${answerIndex} (${['A','B','C','D'][answerIndex]})`);
+            
+            res.json({
+                success: true,
+                answerSent: answerIndex,
+                answerLetter: ['A','B','C','D'][answerIndex],
+                correctAnswer: connectionData.currentQuestion.correctAnswerIndex,
+                wasCorrect: answerIndex === connectionData.currentQuestion.correctAnswerIndex
+            });
+        } else {
+            res.status(400).json({ error: 'WebSocket connection not available' });
+        }
+        
+    } catch (error) {
+        console.error(`Manual answer error: ${error.message}`);
+        res.status(500).json({ error: 'Failed to send answer' });
+    }
+});
 
 // Join game endpoint (requires valid PIN and player name)
 app.post('/api/join', async (req, res) => {
