@@ -81,22 +81,28 @@ async function validateMatchPin(pin) {
 async function fetchGameData(playId) {
     const fetch = (await import('node-fetch')).default;
     
-    // Try various possible endpoints to get quiz data
-    const possibleEndpoints = [
+    // Based on user clarification: quiz data comes from a "start" HTTP request after PIN validation
+    // Most likely endpoints based on the user's hints:
+    const startEndpoints = [
+        `https://play.panquiz.com/api/v1/start/${playId}`,
         `https://play.panquiz.com/api/v1/player/start/${playId}`,
         `https://play.panquiz.com/api/v1/game/start/${playId}`,
-        `https://play.panquiz.com/api/v1/game/${playId}/start`,
+        `https://play.panquiz.com/api/v1/game/${playId}/start`
+    ];
+
+    // Secondary endpoints to try if start endpoints don't work
+    const fallbackEndpoints = [
         `https://play.panquiz.com/api/v1/game/${playId}`,
         `https://play.panquiz.com/api/v1/player/join/${playId}`,
         `https://play.panquiz.com/api/v1/quiz/${playId}`,
         `https://play.panquiz.com/api/v1/game/data/${playId}`,
-        `https://play.panquiz.com/api/v1/player/${playId}/quiz`,
-        `https://play.panquiz.com/api/v1/start/${playId}`
+        `https://play.panquiz.com/api/v1/player/${playId}/quiz`
     ];
 
-    for (const endpoint of possibleEndpoints) {
+    // Try start endpoints first (most likely to contain quiz data)
+    for (const endpoint of startEndpoints) {
         try {
-            console.log(`🔍 Trying endpoint: ${endpoint}`);
+            console.log(`🎯 Trying START endpoint: ${endpoint}`);
             const response = await fetch(endpoint, {
                 method: 'GET',
                 headers: {
@@ -110,61 +116,48 @@ async function fetchGameData(playId) {
 
             if (response.ok) {
                 const data = await response.json();
-                console.log(`✅ Success from ${endpoint}:`, {
+                console.log(`✅ START endpoint success ${endpoint}:`, {
+                    status: response.status,
                     hasQuiz: !!data.quiz,
                     hasQuestions: !!data.questions,
-                    keys: Object.keys(data).slice(0, 10), // Show first 10 keys
-                    dataStructure: typeof data
+                    dataKeys: Object.keys(data),
+                    fullResponse: JSON.stringify(data, null, 2).substring(0, 500) + '...'
                 });
                 
                 // Check if this response contains quiz data
                 if (data.quiz && data.quiz.questions) {
-                    console.log(`🎯 Found quiz data in ${endpoint}:`, {
+                    console.log(`🎯 Found quiz data in START ${endpoint}:`, {
                         questions: data.quiz.questions.length,
-                        firstQuestion: data.quiz.questions[0]?.text?.substring(0, 50) + '...'
+                        sampleQuestion: data.quiz.questions[0]
                     });
                     return data;
                 }
                 
                 // Also check if quiz data is at root level
                 if (data.questions) {
-                    console.log(`🎯 Found questions at root level in ${endpoint}:`, {
+                    console.log(`🎯 Found questions at root level in START ${endpoint}:`, {
                         questions: data.questions.length,
-                        firstQuestion: data.questions[0]?.text?.substring(0, 50) + '...'
+                        sampleQuestion: data.questions[0]
                     });
                     return { quiz: { questions: data.questions } };
                 }
                 
-                // Check for any nested objects that might contain quiz data
-                Object.keys(data).forEach(key => {
-                    const value = data[key];
-                    if (value && typeof value === 'object') {
-                        if (value.questions) {
-                            console.log(`🔍 Found questions in ${endpoint}.${key}:`, {
-                                questions: value.questions.length,
-                                firstQuestion: value.questions[0]?.text?.substring(0, 50) + '...'
-                            });
-                        }
-                        if (value.quiz && value.quiz.questions) {
-                            console.log(`🔍 Found quiz in ${endpoint}.${key}:`, {
-                                questions: value.quiz.questions.length,
-                                firstQuestion: value.quiz.questions[0]?.text?.substring(0, 50) + '...'
-                            });
-                        }
-                    }
-                });
+                // Log full response for debugging if it looks promising
+                if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+                    console.log(`📋 Full response from ${endpoint}:`, JSON.stringify(data, null, 2));
+                }
             } else {
-                console.log(`❌ Failed ${endpoint}: ${response.status} ${response.statusText}`);
+                console.log(`❌ START endpoint failed ${endpoint}: ${response.status} ${response.statusText}`);
             }
         } catch (error) {
-            console.log(`❌ Error ${endpoint}:`, error.message);
+            console.log(`❌ START endpoint error ${endpoint}:`, error.message);
         }
     }
 
-    // If GET requests don't work, try POST requests
-    for (const endpoint of possibleEndpoints) {
+    // Try POST requests on start endpoints
+    for (const endpoint of startEndpoints) {
         try {
-            console.log(`🔍 Trying POST endpoint: ${endpoint}`);
+            console.log(`🎯 Trying POST START endpoint: ${endpoint}`);
             const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
@@ -180,34 +173,85 @@ async function fetchGameData(playId) {
 
             if (response.ok) {
                 const data = await response.json();
-                console.log(`✅ Success from POST ${endpoint}:`, data);
+                console.log(`✅ POST START success ${endpoint}:`, {
+                    status: response.status,
+                    hasQuiz: !!data.quiz,
+                    hasQuestions: !!data.questions,
+                    dataKeys: Object.keys(data),
+                    fullResponse: JSON.stringify(data, null, 2).substring(0, 500) + '...'
+                });
                 
                 // Check if this response contains quiz data
                 if (data.quiz && data.quiz.questions) {
-                    console.log(`🎯 Found quiz data in POST ${endpoint}:`, {
+                    console.log(`🎯 Found quiz data in POST START ${endpoint}:`, {
                         questions: data.quiz.questions.length,
-                        firstQuestion: data.quiz.questions[0]?.text?.substring(0, 50) + '...'
+                        sampleQuestion: data.quiz.questions[0]
                     });
                     return data;
                 }
                 
                 // Also check if quiz data is at root level
                 if (data.questions) {
-                    console.log(`🎯 Found questions at root level in POST ${endpoint}:`, {
+                    console.log(`🎯 Found questions at root level in POST START ${endpoint}:`, {
                         questions: data.questions.length,
-                        firstQuestion: data.questions[0]?.text?.substring(0, 50) + '...'
+                        sampleQuestion: data.questions[0]
                     });
                     return { quiz: { questions: data.questions } };
                 }
+                
+                // Log full response for debugging
+                if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+                    console.log(`📋 Full POST response from ${endpoint}:`, JSON.stringify(data, null, 2));
+                }
             } else {
-                console.log(`❌ Failed POST ${endpoint}: ${response.status} ${response.statusText}`);
+                console.log(`❌ POST START failed ${endpoint}: ${response.status} ${response.statusText}`);
             }
         } catch (error) {
-            console.log(`❌ Error POST ${endpoint}:`, error.message);
+            console.log(`❌ POST START error ${endpoint}:`, error.message);
         }
     }
 
-    console.log('❌ No quiz data found in any endpoint');
+    // Try fallback endpoints if start endpoints don't work
+    for (const endpoint of fallbackEndpoints) {
+        try {
+            console.log(`🔍 Trying fallback endpoint: ${endpoint}`);
+            const response = await fetch(endpoint, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json, */*',
+                    'Origin': 'https://play.panquiz.com',
+                    'Referer': 'https://play.panquiz.com/',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log(`✅ Fallback success ${endpoint}:`, {
+                    hasQuiz: !!data.quiz,
+                    hasQuestions: !!data.questions,
+                    keys: Object.keys(data).slice(0, 10)
+                });
+                
+                if (data.quiz && data.quiz.questions) {
+                    console.log(`🎯 Found quiz data in fallback ${endpoint}`);
+                    return data;
+                }
+                
+                if (data.questions) {
+                    console.log(`🎯 Found questions at root level in fallback ${endpoint}`);
+                    return { quiz: { questions: data.questions } };
+                }
+            } else {
+                console.log(`❌ Fallback failed ${endpoint}: ${response.status} ${response.statusText}`);
+            }
+        } catch (error) {
+            console.log(`❌ Fallback error ${endpoint}:`, error.message);
+        }
+    }
+
+    console.log('❌ No quiz data found in any endpoint. The quiz data might be delivered via WebSocket or a different endpoint.');
     return null;
 }
 
