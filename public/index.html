@@ -371,6 +371,66 @@
             font-weight: 500;
         }
 
+        /* Quiz Preview Styles */
+        .quiz-preview {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 2px solid #e1e1e1;
+        }
+
+        .quiz-questions {
+            max-height: 400px;
+            overflow-y: auto;
+            margin: 15px 0;
+        }
+
+        .quiz-question-item {
+            background: white;
+            border: 1px solid #e1e1e1;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px 0;
+            position: relative;
+        }
+
+        .quiz-question-number {
+            background: #667eea;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            position: absolute;
+            top: -10px;
+            left: 15px;
+        }
+
+        .quiz-question-text {
+            margin-top: 10px;
+            margin-left: 15px;
+            font-size: 16px;
+            line-height: 1.4;
+            color: #333;
+        }
+
+        .quiz-question-timer {
+            background: #ffc107;
+            color: #212529;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+            position: absolute;
+            top: 10px;
+            right: 15px;
+        }
+
         .question-area {
             background: white;
             border-radius: 15px;
@@ -719,6 +779,25 @@
                 padding: 40px 20px;
             }
             
+            .quiz-preview {
+                padding: 15px;
+                margin: 10px 0;
+            }
+            
+            .quiz-questions {
+                max-height: 300px;
+            }
+            
+            .quiz-question-item {
+                padding: 10px;
+                margin: 8px 0;
+            }
+            
+            .quiz-question-text {
+                font-size: 14px;
+                margin-left: 10px;
+            }
+            
             .stats {
                 grid-template-columns: 1fr;
             }
@@ -791,6 +870,16 @@
                         <input type="checkbox" id="autoAnswerMode" checked>
                         🤖 Auto Answer (risposta automatica)
                     </label>
+                </div>
+
+                <div class="quiz-preview" id="quizPreview" style="display: none;">
+                    <h4>📚 Anteprima Quiz</h4>
+                    <div class="quiz-questions" id="quizQuestions">
+                        <!-- Quiz questions will be loaded here -->
+                    </div>
+                    <button class="btn" onclick="loadQuizData()" style="background: #17a2b8; margin-top: 10px;">
+                        🔄 Carica Domande Quiz
+                    </button>
                 </div>
 
                 <div class="question-area" id="questionArea" style="display: none;">
@@ -1223,6 +1312,56 @@
             noMedalArea.style.display = 'block';
             
             showStatus('🎯 Nessun risultato disponibile', 'info');
+        }
+
+        // Quiz data management
+        async function loadQuizData() {
+            if (!currentConnection) {
+                showStatus('❌ Nessuna connessione attiva', 'error');
+                return;
+            }
+            
+            try {
+                showStatus('🔄 Caricamento dati quiz...', 'info');
+                const response = await fetch(`${API_BASE}/quiz/${currentConnection}`);
+                const data = await response.json();
+                
+                if (data.success && data.quiz && data.quiz.questions) {
+                    showQuizPreview(data.quiz.questions);
+                    showStatus(`📚 ${data.quiz.questions.length} domande caricate!`, 'success');
+                } else {
+                    showStatus('❌ Dati quiz non disponibili', 'error');
+                }
+            } catch (error) {
+                console.error('Error loading quiz data:', error);
+                showStatus('❌ Errore caricamento quiz', 'error');
+            }
+        }
+
+        function showQuizPreview(questions) {
+            const quizPreview = document.getElementById('quizPreview');
+            const quizQuestions = document.getElementById('quizQuestions');
+            
+            // Show preview section
+            quizPreview.style.display = 'block';
+            
+            // Generate questions HTML
+            quizQuestions.innerHTML = questions.map((question, index) => `
+                <div class="quiz-question-item">
+                    <div class="quiz-question-number">${index + 1}</div>
+                    <div class="quiz-question-timer">⏱️ ${question.timer}s</div>
+                    <div class="quiz-question-text">${question.text}</div>
+                </div>
+            `).join('');
+            
+            console.log(`📚 Quiz preview loaded: ${questions.length} questions`);
+        }
+
+        // Auto-load quiz data when switching to answer tab
+        function checkForQuizData() {
+            if (currentConnection && document.getElementById('answerTab').classList.contains('active')) {
+                loadQuizData();
+            }
         }
         
         // Try to restore session automatically
@@ -1925,6 +2064,9 @@
                     // Silent fail for medal check
                 }
             }
+            
+            // Check for quiz data when in answer tab
+            checkForQuizData();
         }, 3000); // Check more frequently for questions
 
         // Initialize page - try to restore session

@@ -126,6 +126,37 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
         
         try {
             const parsedMessage = JSON.parse(message.toString().replace('\u001e', ''));
+            
+            // Log all messages to find quiz data
+            if (parsedMessage.type === 1) {
+                console.log(`📡 WebSocket message for ${playerName}:`, {
+                    target: parsedMessage.target,
+                    arguments: parsedMessage.arguments ? parsedMessage.arguments.length + ' args' : 'no args'
+                });
+                
+                // Look for quiz data in any message
+                if (parsedMessage.arguments) {
+                    parsedMessage.arguments.forEach((arg, index) => {
+                        if (arg && typeof arg === 'object' && arg.quiz) {
+                            console.log(`🎯 Found quiz data in ${parsedMessage.target} arg[${index}]:`, {
+                                questions: arg.quiz.questions ? arg.quiz.questions.length + ' questions' : 'no questions',
+                                hasQuestions: !!arg.quiz.questions
+                            });
+                            
+                            // Store quiz data
+                            if (arg.quiz.questions) {
+                                connectionData.quizData = arg.quiz;
+                                console.log(`📚 Quiz questions stored for ${playerName}:`, 
+                                    arg.quiz.questions.map(q => ({
+                                        text: q.text ? q.text.substring(0, 50) + '...' : 'no text',
+                                        timer: q.timer || 'no timer'
+                                    }))
+                                );
+                            }
+                        }
+                    });
+                }
+            }
 
             if (message.toString() === "{}\u001e") {
                 const playerJoined = {
@@ -416,6 +447,40 @@ app.post('/api/bulk-join', async (req, res) => {
 });
 
 // Get connection status
+// Get quiz data for a connection (all questions with text and timer)
+app.get('/api/quiz/:connectionId', (req, res) => {
+    try {
+        const { connectionId } = req.params;
+        const connection = activeConnections.get(connectionId);
+        
+        if (!connection) {
+            return res.status(404).json({ error: 'Connessione non trovata' });
+        }
+
+        if (connection.quizData && connection.quizData.questions) {
+            res.json({
+                success: true,
+                quiz: {
+                    questions: connection.quizData.questions.map((q, index) => ({
+                        id: index,
+                        text: q.text || 'Domanda non disponibile',
+                        timer: q.timer || 30,
+                        originalData: q
+                    }))
+                }
+            });
+        } else {
+            res.json({
+                success: false,
+                message: 'Dati quiz non disponibili'
+            });
+        }
+    } catch (error) {
+        console.error('Error getting quiz data:', error);
+        res.status(500).json({ error: 'Errore durante il recupero del quiz' });
+    }
+});
+
 // Get current question for a connection (for manual answer mode)
 app.get('/api/question/:connectionId', (req, res) => {
     try {
