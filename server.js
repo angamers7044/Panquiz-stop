@@ -213,6 +213,21 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
                 ws.close();
             }
 
+            if (parsedMessage.type === 1 && parsedMessage.target === "ShowMedal") {
+                const medalPosition = parsedMessage.arguments[0];
+                console.log(`🏆 Medal received for ${playerName}: position ${medalPosition}`);
+                
+                // Store medal result
+                connectionData.medalPosition = medalPosition;
+                connectionData.medalTimestamp = Date.now();
+                
+                // Medal position mapping: 1=second, 2=first, 3=third
+                const positionNames = { 1: 'secondo', 2: 'primo', 3: 'terzo' };
+                const positionName = positionNames[medalPosition] || `posizione ${medalPosition}`;
+                
+                console.log(`🎖️ ${playerName} ha ottenuto il ${positionName} posto!`);
+            }
+
             if (parsedMessage.type === 1 && parsedMessage.target === "PlayerDisconnected" && parsedMessage.arguments[0] === true) {
                 console.log(`Player ${playerName} disconnected from game`);
                 connectionData.connected = false;
@@ -495,6 +510,42 @@ app.post('/api/answer/:connectionId', (req, res) => {
     } catch (error) {
         console.error('Error sending manual answer:', error);
         res.status(500).json({ error: 'Errore durante l\'invio della risposta' });
+    }
+});
+
+// Get medal result for a connection
+app.get('/api/medal/:connectionId', (req, res) => {
+    try {
+        const { connectionId } = req.params;
+        const connection = activeConnections.get(connectionId);
+        
+        if (!connection) {
+            return res.status(404).json({ error: 'Connessione non trovata' });
+        }
+
+        if (connection.medalPosition) {
+            // Medal position mapping: 1=second, 2=first, 3=third
+            const positionNames = { 1: 'secondo', 2: 'primo', 3: 'terzo' };
+            const medals = { 1: '🥈', 2: '🥇', 3: '🥉' };
+            
+            res.json({
+                success: true,
+                medal: {
+                    position: connection.medalPosition,
+                    positionName: positionNames[connection.medalPosition] || `posizione ${connection.medalPosition}`,
+                    emoji: medals[connection.medalPosition] || '🏆',
+                    timestamp: connection.medalTimestamp
+                }
+            });
+        } else {
+            res.json({
+                success: false,
+                message: 'Nessuna medaglia assegnata'
+            });
+        }
+    } catch (error) {
+        console.error('Error getting medal result:', error);
+        res.status(500).json({ error: 'Errore durante il recupero della medaglia' });
     }
 });
 

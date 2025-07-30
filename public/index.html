@@ -529,6 +529,132 @@
             border: 1px solid #f5c6cb;
         }
 
+        /* Results Tab Styles */
+        .medal-area {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            margin: 20px 0;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .medal-celebration {
+            animation: medalEntrance 1s ease-out;
+        }
+
+        @keyframes medalEntrance {
+            0% { transform: scale(0.5) rotate(-180deg); opacity: 0; }
+            50% { transform: scale(1.2) rotate(0deg); opacity: 1; }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+
+        .medal-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+            animation: medalBounce 2s ease-in-out infinite;
+        }
+
+        @keyframes medalBounce {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .medal-title {
+            font-size: 32px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .medal-subtitle {
+            font-size: 18px;
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .medal-position {
+            font-size: 28px;
+            font-weight: bold;
+            padding: 15px 30px;
+            border-radius: 15px;
+            margin: 20px 0;
+            display: inline-block;
+        }
+
+        .medal-position.first {
+            background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+            color: #b8860b;
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+        }
+
+        .medal-position.second {
+            background: linear-gradient(135deg, #c0c0c0 0%, #e8e8e8 100%);
+            color: #6c757d;
+            box-shadow: 0 0 30px rgba(192, 192, 192, 0.5);
+        }
+
+        .medal-position.third {
+            background: linear-gradient(135deg, #cd7f32 0%, #daa520 100%);
+            color: #8b4513;
+            box-shadow: 0 0 30px rgba(205, 127, 50, 0.5);
+        }
+
+        .medal-stats {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 30px;
+        }
+
+        .medal-stat {
+            text-align: center;
+        }
+
+        .medal-stat-value {
+            display: block;
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .medal-stat-label {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .no-medal-area {
+            text-align: center;
+            padding: 60px 40px;
+            background: rgba(108, 117, 125, 0.1);
+            border-radius: 20px;
+            margin: 20px 0;
+        }
+
+        .no-medal-icon {
+            font-size: 60px;
+            margin-bottom: 20px;
+            opacity: 0.7;
+        }
+
+        .no-medal-text {
+            font-size: 24px;
+            font-weight: bold;
+            color: #6c757d;
+            margin-bottom: 10px;
+        }
+
+        .no-medal-subtext {
+            font-size: 16px;
+            color: #999;
+        }
+
+        .results-actions {
+            text-align: center;
+            margin-top: 20px;
+        }
+
         @media (max-width: 480px) {
             .container {
                 margin: 10px;
@@ -558,8 +684,39 @@
             }
             
             .tab-btn {
-                padding: 8px 12px;
-                font-size: 12px;
+                padding: 8px 10px;
+                font-size: 11px;
+            }
+            
+            .medal-area {
+                padding: 20px;
+                margin: 10px 0;
+            }
+            
+            .medal-icon {
+                font-size: 60px;
+            }
+            
+            .medal-title {
+                font-size: 24px;
+            }
+            
+            .medal-subtitle {
+                font-size: 16px;
+            }
+            
+            .medal-position {
+                font-size: 20px;
+                padding: 12px 20px;
+            }
+            
+            .medal-stats {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .no-medal-area {
+                padding: 40px 20px;
             }
             
             .stats {
@@ -597,6 +754,7 @@
             <div class="tab-navigation">
                 <button class="tab-btn active" onclick="switchTab('stats')">📊 Statistiche</button>
                 <button class="tab-btn" onclick="switchTab('answer')">🎯 Answer</button>
+                <button class="tab-btn" onclick="switchTab('results')">🏆 Risultati</button>
             </div>
 
             <!-- Stats Tab -->
@@ -652,6 +810,40 @@
                     <div class="answer-feedback" id="answerFeedback">
                         <!-- Feedback after answering -->
                     </div>
+                </div>
+            </div>
+
+            <!-- Results Tab -->
+            <div id="resultsTab" class="tab-content">
+                <h3>🏆 Risultati Partita</h3>
+                
+                <div class="medal-area" id="medalArea" style="display: none;">
+                    <div class="medal-celebration">
+                        <div class="medal-icon" id="medalIcon">🏆</div>
+                        <div class="medal-title" id="medalTitle">Complimenti!</div>
+                        <div class="medal-subtitle" id="medalSubtitle">Hai conquistato un posto sul podio!</div>
+                        <div class="medal-position" id="medalPosition">🥇 Primo Posto</div>
+                        <div class="medal-stats">
+                            <div class="medal-stat">
+                                <span class="medal-stat-value" id="finalQuestions">0</span>
+                                <span class="medal-stat-label">Domande Risposte</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="no-medal-area" id="noMedalArea">
+                    <div class="no-medal-message">
+                        <div class="no-medal-icon">🎯</div>
+                        <div class="no-medal-text">Partita in corso...</div>
+                        <div class="no-medal-subtext">I risultati appariranno al termine della partita</div>
+                    </div>
+                </div>
+
+                <div class="results-actions">
+                    <button class="btn" onclick="checkMedalResult()" style="background: #ffc107; color: #212529;">
+                        🔄 Controlla Risultati
+                    </button>
                 </div>
             </div>
         </div>
@@ -957,6 +1149,80 @@
                 }
                 updateTimer();
             }, 1000);
+        }
+
+        // Medal result management
+        async function checkMedalResult() {
+            if (!currentConnection) {
+                showStatus('❌ Nessuna connessione attiva', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/medal/${currentConnection}`);
+                const data = await response.json();
+                
+                if (data.success && data.medal) {
+                    showMedalResult(data.medal);
+                } else {
+                    showNoMedal();
+                }
+            } catch (error) {
+                console.error('Error checking medal result:', error);
+                showStatus('❌ Errore controllo risultati', 'error');
+            }
+        }
+
+        function showMedalResult(medal) {
+            const medalArea = document.getElementById('medalArea');
+            const noMedalArea = document.getElementById('noMedalArea');
+            const medalIcon = document.getElementById('medalIcon');
+            const medalTitle = document.getElementById('medalTitle');
+            const medalSubtitle = document.getElementById('medalSubtitle');
+            const medalPosition = document.getElementById('medalPosition');
+            const finalQuestions = document.getElementById('finalQuestions');
+            
+            // Hide no medal, show medal
+            noMedalArea.style.display = 'none';
+            medalArea.style.display = 'block';
+            
+            // Set medal content
+            medalIcon.textContent = medal.emoji;
+            medalPosition.textContent = `${medal.emoji} ${medal.positionName.charAt(0).toUpperCase() + medal.positionName.slice(1)} Posto`;
+            
+            // Set position-specific styling and messages
+            medalPosition.className = 'medal-position';
+            if (medal.position === 2) { // First place
+                medalPosition.classList.add('first');
+                medalTitle.textContent = '🎉 VITTORIA! 🎉';
+                medalSubtitle.textContent = 'Sei il campione di questa partita!';
+            } else if (medal.position === 1) { // Second place  
+                medalPosition.classList.add('second');
+                medalTitle.textContent = '👏 Ottimo Risultato! 👏';
+                medalSubtitle.textContent = 'Hai conquistato il secondo posto!';
+            } else if (medal.position === 3) { // Third place
+                medalPosition.classList.add('third');
+                medalTitle.textContent = '🏆 Sul Podio! 🏆';
+                medalSubtitle.textContent = 'Hai conquistato il terzo posto!';
+            }
+            
+            // Update final stats
+            finalQuestions.textContent = questionsCount;
+            
+            // Auto-switch to results tab
+            switchTab('results');
+            
+            showStatus(`🏆 ${medal.positionName.charAt(0).toUpperCase() + medal.positionName.slice(1)} posto conquistato!`, 'success');
+        }
+
+        function showNoMedal() {
+            const medalArea = document.getElementById('medalArea');
+            const noMedalArea = document.getElementById('noMedalArea');
+            
+            medalArea.style.display = 'none';
+            noMedalArea.style.display = 'block';
+            
+            showStatus('🎯 Nessun risultato disponibile', 'info');
         }
         
         // Try to restore session automatically
@@ -1644,6 +1910,21 @@
             
             // Check for new questions if in manual mode
             await checkForNewQuestion();
+            
+            // Check for medal results automatically
+            if (currentConnection) {
+                try {
+                    const response = await fetch(`${API_BASE}/medal/${currentConnection}`);
+                    const data = await response.json();
+                    
+                    if (data.success && data.medal) {
+                        // Medal received! Show it automatically
+                        showMedalResult(data.medal);
+                    }
+                } catch (error) {
+                    // Silent fail for medal check
+                }
+            }
         }, 3000); // Check more frequently for questions
 
         // Initialize page - try to restore session
