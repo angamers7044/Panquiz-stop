@@ -1263,6 +1263,7 @@
 
             // Show question area
             questionArea.style.display = 'block';
+            console.log('🔍 questionArea shown:', questionArea.style.display);
             
             // Set question content
             questionTitle.textContent = `Domanda ${questionData.questionNumber || '?'}`;
@@ -1282,12 +1283,12 @@
             const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
             
             const buttonHTML = letters.map((letter, i) => {
-                const answer = answers[i] || `Risposta ${letter}`;
+                const answer = answers[i] || `Opzione ${letter}`;
                 const isCorrect = i === correctIndex;
                 const buttonClass = isCorrect ? 'answer-btn correct' : 'answer-btn';
                 
                 return `
-                    <button class="${buttonClass}" onclick="sendManualAnswer(${i})" data-answer="${i}">
+                    <button class="${buttonClass}" onclick="sendManualAnswer(${i})" data-answer="${i}" style="margin: 5px 0; padding: 10px; display: block; width: 100%;">
                         <span class="answer-letter">${letter}</span>
                         <span class="answer-text">${answer}</span>
                         ${isCorrect ? '<span class="correct-indicator">✓</span>' : ''}
@@ -1300,6 +1301,16 @@
             if (answerOptions) {
                 answerOptions.innerHTML = buttonHTML.join('');
                 console.log('✅ Buttons inserted into answerOptions');
+                console.log('🔍 answerOptions style:', {
+                    display: answerOptions.style.display,
+                    visibility: answerOptions.style.visibility,
+                    innerHTML: answerOptions.innerHTML.substring(0, 100) + '...'
+                });
+                
+                // Force show the answer options
+                answerOptions.style.display = 'flex';
+                answerOptions.style.visibility = 'visible';
+                
             } else {
                 console.error('❌ answerOptions element not found!');
             }
