@@ -1324,6 +1324,17 @@
                 answerOptions.style.position = 'relative';
                 answerOptions.style.zIndex = '9999';
                 
+                // FORCE ALL PARENT CONTAINERS TO BE VISIBLE
+                let parent = answerOptions.parentElement;
+                while (parent && parent !== document.body) {
+                    parent.style.setProperty('display', 'block', 'important');
+                    parent.style.setProperty('visibility', 'visible', 'important');
+                    parent.style.setProperty('overflow', 'visible', 'important');
+                    parent.style.opacity = '1';
+                    console.log('🔍 Forced parent visible:', parent.className || parent.id || parent.tagName);
+                    parent = parent.parentElement;
+                }
+                
                 // Also force show all buttons inside with brutal CSS
                 const buttons = answerOptions.querySelectorAll('button');
                 buttons.forEach((btn, index) => {
