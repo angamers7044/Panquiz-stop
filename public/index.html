@@ -1359,6 +1359,22 @@
                     visibility: answerOptions.style.visibility
                 });
                 
+                // NUCLEAR OPTION: Move buttons to body if still not visible
+                if (buttons.length > 0) {
+                    console.log('🚨 NUCLEAR OPTION: Moving buttons to body top');
+                    const testDiv = document.createElement('div');
+                    testDiv.innerHTML = `
+                        <div style="position: fixed !important; top: 50px !important; left: 50px !important; 
+                                    z-index: 999999 !important; background: yellow !important; 
+                                    padding: 20px !important; border: 5px solid red !important;">
+                            <h2 style="color: black !important;">BOTTONI TEST:</h2>
+                            ${buttonHTML.join('')}
+                        </div>
+                    `;
+                    document.body.appendChild(testDiv);
+                    console.log('🚨 Buttons moved to body - you MUST see them now!');
+                }
+                
             } else {
                 console.error('❌ answerOptions element not found!');
             }
