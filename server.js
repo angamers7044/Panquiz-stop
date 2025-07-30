@@ -285,18 +285,27 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
             }
 
             if (parsedMessage.type === 1 && parsedMessage.target === "ShowMedal") {
-                const medalPosition = parsedMessage.arguments[0];
-                console.log(`🏆 Medal received for ${playerName}: position ${medalPosition}`);
+                const rankingCode = parsedMessage.arguments[0];
+                console.log(`🏆 Medal received for ${playerName}: ranking code ${rankingCode}`);
                 
-                // Store medal result
-                connectionData.medalPosition = medalPosition;
-                connectionData.medalTimestamp = Date.now();
+                // Decode medal ranking: 0=3rd place, 1=2nd place, 2=1st place
+                const medalMapping = {
+                    0: { place: "3rd", emoji: "🥉", name: "Bronze Medal", italian: "terzo" },
+                    1: { place: "2nd", emoji: "🥈", name: "Silver Medal", italian: "secondo" },
+                    2: { place: "1st", emoji: "🥇", name: "Gold Medal", italian: "primo" }
+                };
                 
-                // Medal position mapping: 1=second, 2=first, 3=third
-                const positionNames = { 1: 'secondo', 2: 'primo', 3: 'terzo' };
-                const positionName = positionNames[medalPosition] || `posizione ${medalPosition}`;
-                
-                console.log(`🎖️ ${playerName} ha ottenuto il ${positionName} posto!`);
+                const medal = medalMapping[rankingCode];
+                if (medal) {
+                    // Store medal result
+                    connectionData.medalPosition = rankingCode;
+                    connectionData.medalData = medal;
+                    connectionData.medalTimestamp = Date.now();
+                    
+                    console.log(`🏅 ${playerName} ha ottenuto ${medal.emoji} ${medal.name} (${medal.italian} posto)!`);
+                } else {
+                    console.log(`🏅 Unknown medal ranking code: ${rankingCode} for ${playerName}`);
+                }
             }
 
             if (parsedMessage.type === 1 && parsedMessage.target === "PlayerDisconnected" && parsedMessage.arguments[0] === true) {
