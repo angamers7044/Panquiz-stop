@@ -105,7 +105,9 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
         connected: false,
         questionsAnswered: 0,
         lastActivity: Date.now(),
-        ws: ws
+        ws: ws,
+        isMainPlayer: true, // This is the main player, not a bot
+        autoAnswer: true    // Default to auto answer, can be changed via API
     };
     
     activeConnections.set(connectionId, connectionData);
@@ -168,7 +170,8 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
                 const mappedAnswer = answerMapping[rightAnswer];
                 connectionData.correctAnswerIndex = parseInt(mappedAnswer);
 
-                if (mappedAnswer !== undefined) {
+                // Only auto-answer if auto answer mode is enabled
+                if (mappedAnswer !== undefined && connectionData.autoAnswer) {
                     const answerMessage = {
                         type: 1,
                         target: "AnswerGivenFromPlayer",
@@ -176,7 +179,9 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
                     };
                     ws.send(JSON.stringify(answerMessage) + '\u001e');
                     connectionData.questionsAnswered++;
-                    console.log(`Answer sent for ${playerName}: ${mappedAnswer} (Total: ${connectionData.questionsAnswered})`);
+                    console.log(`Auto answer sent for ${playerName}: ${mappedAnswer} (Total: ${connectionData.questionsAnswered})`);
+                } else if (mappedAnswer !== undefined && !connectionData.autoAnswer) {
+                    console.log(`Question stored for manual answer by ${playerName}, waiting for user selection...`);
                 }
             }
 
@@ -396,6 +401,103 @@ app.post('/api/bulk-join', async (req, res) => {
 });
 
 // Get connection status
+// Get current question for a connection (for manual answer mode)
+app.get('/api/question/:connectionId', (req, res) => {
+    try {
+        const { connectionId } = req.params;
+        const connection = activeConnections.get(connectionId);
+        
+        if (!connection) {
+            return res.status(404).json({ error: 'Connessione non trovata' });
+        }
+
+        if (connection.currentQuestion) {
+            res.json({
+                success: true,
+                question: {
+                    ...connection.currentQuestion,
+                    correctIndex: connection.correctAnswerIndex
+                }
+            });
+        } else {
+            res.json({
+                success: false,
+                message: 'Nessuna domanda disponibile'
+            });
+        }
+    } catch (error) {
+        console.error('Error getting current question:', error);
+        res.status(500).json({ error: 'Errore durante il recupero della domanda' });
+    }
+});
+
+// Set auto answer mode for a connection
+app.post('/api/set-auto-answer/:connectionId', (req, res) => {
+    try {
+        const { connectionId } = req.params;
+        const { autoAnswer } = req.body;
+        const connection = activeConnections.get(connectionId);
+        
+        if (!connection) {
+            return res.status(404).json({ error: 'Connessione non trovata' });
+        }
+
+        connection.autoAnswer = autoAnswer;
+        console.log(`Auto answer mode for ${connection.playerName}: ${autoAnswer ? 'enabled' : 'disabled'}`);
+        
+        res.json({
+            success: true,
+            message: autoAnswer ? 'Auto answer abilitato' : 'Auto answer disabilitato'
+        });
+        
+    } catch (error) {
+        console.error('Error setting auto answer mode:', error);
+        res.status(500).json({ error: 'Errore durante l\'impostazione della modalità' });
+    }
+});
+
+// Send manual answer for a connection
+app.post('/api/answer/:connectionId', (req, res) => {
+    try {
+        const { connectionId } = req.params;
+        const { answerIndex } = req.body;
+        const connection = activeConnections.get(connectionId);
+        
+        if (!connection) {
+            return res.status(404).json({ error: 'Connessione non trovata' });
+        }
+
+        if (!connection.currentQuestion) {
+            return res.status(400).json({ error: 'Nessuna domanda attiva' });
+        }
+
+        // Send answer via WebSocket
+        const answerMessage = {
+            type: 1,
+            target: "AnswerGivenFromPlayer",
+            arguments: [connection.playId, answerIndex.toString(), 500]
+        };
+        
+        connection.ws.send(JSON.stringify(answerMessage) + '\u001e');
+        connection.questionsAnswered++;
+        
+        console.log(`Manual answer sent for ${connection.playerName}: ${answerIndex} (Total: ${connection.questionsAnswered})`);
+        
+        res.json({
+            success: true,
+            message: 'Risposta inviata',
+            isCorrect: answerIndex === connection.correctAnswerIndex
+        });
+        
+        // Clear current question
+        connection.currentQuestion = null;
+        
+    } catch (error) {
+        console.error('Error sending manual answer:', error);
+        res.status(500).json({ error: 'Errore durante l\'invio della risposta' });
+    }
+});
+
 app.get('/api/status/:connectionId', (req, res) => {
     const { connectionId } = req.params;
     const connection = activeConnections.get(connectionId);

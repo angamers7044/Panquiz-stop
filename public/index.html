@@ -728,9 +728,30 @@
         let questionStartTime = null;
         let autoAnswerEnabled = true;
 
-        function toggleAnswerMode() {
+        async function toggleAnswerMode() {
             autoAnswerEnabled = document.getElementById('autoAnswerMode').checked;
             console.log('Auto answer mode:', autoAnswerEnabled ? 'enabled' : 'disabled');
+            
+            // Send to server if we have a connection
+            if (currentConnection) {
+                try {
+                    const response = await fetch(`${API_BASE}/set-auto-answer/${currentConnection}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ autoAnswer: autoAnswerEnabled })
+                    });
+                    
+                    const data = await response.json();
+                    console.log('Auto answer mode updated:', data);
+                    
+                    if (autoAnswerEnabled) {
+                        // Hide question area if switching to auto mode
+                        document.getElementById('questionArea').style.display = 'none';
+                    }
+                } catch (error) {
+                    console.error('Error updating auto answer mode:', error);
+                }
+            }
         }
 
         function showQuestion(questionData) {
@@ -784,7 +805,7 @@
             }
         }
 
-        function selectAnswer(selectedIndex, isAuto = false) {
+        async function selectAnswer(selectedIndex, isAuto = false) {
             const options = document.querySelectorAll('.answer-option');
             const answerFeedback = document.getElementById('answerFeedback');
             
@@ -799,6 +820,22 @@
             // Check if correct
             const isCorrect = selectedIndex === currentQuestion.correctIndex;
             
+            // Send answer to server
+            if (currentConnection && !isAuto) {
+                try {
+                    const response = await fetch(`${API_BASE}/answer/${currentConnection}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ answerIndex: selectedIndex })
+                    });
+                    
+                    const data = await response.json();
+                    console.log('Manual answer response:', data);
+                } catch (error) {
+                    console.error('Error sending manual answer:', error);
+                }
+            }
+            
             // Show feedback
             if (isCorrect) {
                 answerFeedback.textContent = isAuto ? '🤖 Risposta automatica corretta!' : '✅ Risposta corretta!';
@@ -806,12 +843,6 @@
             } else {
                 answerFeedback.textContent = isAuto ? '🤖 Risposta automatica sbagliata' : '❌ Risposta sbagliata';
                 answerFeedback.className = 'answer-feedback incorrect';
-            }
-
-            // Send answer to server (keeping existing logic)
-            if (currentConnection) {
-                // This would integrate with existing answer sending logic
-                console.log(`Answer selected: ${selectedIndex} (${isCorrect ? 'correct' : 'incorrect'})`);
             }
 
             // Hide question after 3 seconds
@@ -1483,6 +1514,26 @@
             }
         }
 
+        // Check for new questions when in manual mode
+        async function checkForNewQuestion() {
+            if (!currentConnection || autoAnswerEnabled) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/question/${currentConnection}`);
+                const data = await response.json();
+                
+                if (data.success && data.question) {
+                    // Only show if it's a new question (different timestamp)
+                    if (!currentQuestion || data.question.timestamp !== currentQuestion.timestamp) {
+                        console.log('New question available for manual answer:', data.question);
+                        showQuestion(data.question);
+                    }
+                }
+            } catch (error) {
+                console.log('Error checking for new question:', error);
+            }
+        }
+
         // Auto refresh bots and check for game updates (without changing PIN field)
         setInterval(async () => {
             if (currentPlayId) {
@@ -1504,7 +1555,10 @@
             }
             // Check for game updates but DON'T auto-update PIN field
             await checkCurrentGameInfo();
-        }, 15000);
+            
+            // Check for new questions if in manual mode
+            await checkForNewQuestion();
+        }, 3000); // Check more frequently for questions
 
         // Initialize page - try to restore session
         window.addEventListener('DOMContentLoaded', async () => {
