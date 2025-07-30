@@ -1266,26 +1266,26 @@
             
             // Set question content
             questionTitle.textContent = `Domanda ${questionData.questionNumber || '?'}`;
-                                questionText.textContent = questionData.question || 'Testo domanda non disponibile';
-                    
-                    // Create answer buttons A, B, C, D
-                    const answerOptions = document.getElementById('answerOptions');
-                    const answers = questionData.answers || ['Risposta A', 'Risposta B', 'Risposta C', 'Risposta D'];
-                    const correctIndex = questionData.correctAnswerIndex;
-                    
-                    answerOptions.innerHTML = answers.map((answer, index) => {
-                        const letter = ['A', 'B', 'C', 'D'][index];
-                        const isCorrect = index === correctIndex;
-                        const buttonClass = isCorrect ? 'answer-btn correct' : 'answer-btn';
-                        
-                        return `
-                            <button class="${buttonClass}" onclick="sendManualAnswer(${index})" data-answer="${index}">
-                                <span class="answer-letter">${letter}</span>
-                                <span class="answer-text">${answer}</span>
-                                ${isCorrect ? '<span class="correct-indicator">✓</span>' : ''}
-                            </button>
-                        `;
-                    }).join('');
+            questionText.textContent = questionData.question || 'Testo domanda non disponibile';
+            
+            // Create answer buttons A, B, C, D
+            const answerOptions = document.getElementById('answerOptions');
+            const answers = questionData.answers || ['Risposta A', 'Risposta B', 'Risposta C', 'Risposta D'];
+            const correctIndex = questionData.correctAnswerIndex;
+            
+            answerOptions.innerHTML = answers.map((answer, index) => {
+                const letter = ['A', 'B', 'C', 'D'][index];
+                const isCorrect = index === correctIndex;
+                const buttonClass = isCorrect ? 'answer-btn correct' : 'answer-btn';
+                
+                return `
+                    <button class="${buttonClass}" onclick="sendManualAnswer(${index})" data-answer="${index}">
+                        <span class="answer-letter">${letter}</span>
+                        <span class="answer-text">${answer}</span>
+                        ${isCorrect ? '<span class="correct-indicator">✓</span>' : ''}
+                    </button>
+                `;
+            }).join('');
 
             // Clear previous feedback
             answerFeedback.innerHTML = '';
