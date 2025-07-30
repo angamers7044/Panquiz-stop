@@ -374,6 +374,9 @@
             <button class="btn" onclick="reconnectMainPlayer()" style="margin-top: 10px; background: #28a745;">
                 🔄 Riconnetti Giocatore
             </button>
+            <button class="btn" onclick="clearSession(); showStatus('🗑️ Sessione cancellata', 'info');" style="margin-top: 10px; background: #6c757d;">
+                🗑️ Cancella Sessione
+            </button>
         </div>
 
         <div class="bot-manager-section" id="botManagerSection">
@@ -441,8 +444,140 @@
 
     <script>
         const API_BASE = '/api';
+        
+        // Cookie management functions
+        function setCookie(name, value, days = 1) {
+            const expires = new Date();
+            expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+            document.cookie = `${name}=${value}; expires=${expires.toUTCString()}; path=/`;
+        }
+        
+        function getCookie(name) {
+            const nameEQ = name + "=";
+            const ca = document.cookie.split(';');
+            for (let i = 0; i < ca.length; i++) {
+                let c = ca[i];
+                while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+                if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+            }
+            return null;
+        }
+        
+        function deleteCookie(name) {
+            document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+        }
         let currentConnection = null;
         let questionsCount = 0;
+        let currentPlayId = null;
+        let activeBots = [];
+        
+        // Session management
+        function saveSession() {
+            if (currentConnection && currentPlayId) {
+                const sessionData = {
+                    connectionId: currentConnection,
+                    playId: currentPlayId,
+                    playerName: document.getElementById('playerName').value,
+                    pinCode: document.getElementById('pin').value,
+                    timestamp: Date.now()
+                };
+                setCookie('panquiz_session', JSON.stringify(sessionData), 1); // 1 day
+                console.log('💾 Session saved to cookies');
+            }
+        }
+        
+        function loadSession() {
+            const sessionCookie = getCookie('panquiz_session');
+            if (sessionCookie) {
+                try {
+                    const sessionData = JSON.parse(sessionCookie);
+                    const timeDiff = Date.now() - sessionData.timestamp;
+                    
+                    // Session valid for 24 hours
+                    if (timeDiff < 24 * 60 * 60 * 1000) {
+                        return sessionData;
+                    } else {
+                        deleteCookie('panquiz_session');
+                        console.log('🕐 Session expired, removed');
+                    }
+                } catch (e) {
+                    deleteCookie('panquiz_session');
+                    console.log('❌ Invalid session cookie, removed');
+                }
+            }
+            return null;
+        }
+        
+        function clearSession() {
+            deleteCookie('panquiz_session');
+            console.log('🗑️ Session cleared');
+        }
+        
+        // Try to restore session automatically
+        async function tryRestoreSession() {
+            const sessionData = loadSession();
+            if (sessionData) {
+                console.log('🔄 Attempting to restore session...', sessionData);
+                
+                // Fill form with saved data
+                document.getElementById('pin').value = sessionData.pinCode;
+                document.getElementById('playerName').value = sessionData.playerName;
+                
+                // Try to verify if connection is still active
+                try {
+                    const response = await fetch(`${API_BASE}/status/${sessionData.connectionId}`);
+                    const data = await response.json();
+                    
+                    if (data.connected) {
+                        // Session is still active!
+                        currentConnection = sessionData.connectionId;
+                        currentPlayId = sessionData.playId;
+                        showGameInfo();
+                        monitorConnection();
+                        showStatus(`✅ Sessione ripristinata! Connesso come ${sessionData.playerName}`, 'success');
+                        elements.gameStatus.textContent = `Riconnesso come ${sessionData.playerName}`;
+                        console.log('✅ Session successfully restored');
+                        return true;
+                    } else {
+                        // Connection expired, try to reconnect
+                        console.log('🔄 Connection expired, attempting reconnection...');
+                        showStatus('🔄 Riconnettendo alla sessione precedente...', 'info');
+                        
+                        const joinResponse = await fetch(`${API_BASE}/join`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ 
+                                pinCode: sessionData.pinCode, 
+                                playerName: sessionData.playerName 
+                            })
+                        });
+                        
+                        const joinData = await joinResponse.json();
+                        
+                        if (joinResponse.ok) {
+                            currentConnection = joinData.connectionId;
+                            currentPlayId = joinData.playId;
+                            showGameInfo();
+                            monitorConnection();
+                            saveSession(); // Save new session
+                            showStatus(`✅ Riconnesso con successo come ${sessionData.playerName}!`, 'success');
+                            elements.gameStatus.textContent = `Riconnesso come ${sessionData.playerName}`;
+                            console.log('✅ Successfully reconnected with new session');
+                            return true;
+                        } else {
+                            showStatus(`❌ Errore riconnessione: ${joinData.error}`, 'error');
+                        }
+                    }
+                } catch (error) {
+                    console.error('Session restore failed:', error);
+                    showStatus('❌ Errore ripristino sessione', 'error');
+                }
+                
+                // If restore failed, clear invalid session
+                clearSession();
+            }
+            return false;
+        }
 
         const elements = {
             form: document.getElementById('joinForm'),
@@ -550,6 +685,9 @@
                 showGameInfo();
                 monitorConnection();
                 
+                // Save session to cookies
+                saveSession();
+                
                 showStatus('Connesso con successo alla partita!', 'success');
                 elements.gameStatus.textContent = `Connesso come ${playerName}`;
 
@@ -609,6 +747,8 @@
                 console.error('Disconnect error:', error);
             }
 
+            // Clear session when manually disconnecting
+            clearSession();
             currentConnection = null;
             hideGameInfo();
             elements.pin.value = '';
@@ -616,8 +756,6 @@
         }
 
         // Bot management variables
-        let activeBots = [];
-        let currentPlayId = null;
         let manualEditMode = false;
 
         // Bot name generator function
@@ -970,6 +1108,7 @@
                     currentPlayId = data.playId;
                     showGameInfo();
                     monitorConnection();
+                    saveSession(); // Save session after manual reconnection
                     showStatus(`✅ Giocatore principale riconnesso con successo!`, 'success');
                     elements.gameStatus.textContent = `Riconnesso come ${playerName}`;
                 } else {
@@ -1034,6 +1173,15 @@
             // Check for game updates but DON'T auto-update PIN field
             await checkCurrentGameInfo();
         }, 15000);
+
+        // Initialize page - try to restore session
+        window.addEventListener('DOMContentLoaded', async () => {
+            console.log('🚀 Page loaded, checking for existing session...');
+            const restored = await tryRestoreSession();
+            if (!restored) {
+                console.log('💭 No valid session found, starting fresh');
+            }
+        });
 
         // Handle page unload
         window.addEventListener('beforeunload', () => {
