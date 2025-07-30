@@ -1524,13 +1524,13 @@
 
         // Send manual answer function
         async function sendManualAnswer(answerIndex) {
-            if (!currentConnectionId) {
+            if (!currentConnection) {
                 showError('Nessuna connessione attiva');
                 return;
             }
 
             try {
-                const response = await fetch(`/api/answer/${currentConnectionId}`, {
+                const response = await fetch(`/api/answer/${currentConnection}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
