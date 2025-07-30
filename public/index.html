@@ -338,6 +338,15 @@
             -webkit-tap-highlight-color: transparent;
             touch-action: manipulation;
             user-select: none;
+            /* Enhanced mobile support */
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            min-height: 44px; /* Minimum touch target size for mobile */
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .tab-btn.active {
@@ -1075,6 +1084,8 @@
         }
 
         // Tab management
+        let lastActiveTab = 'stats'; // Track the last active tab
+        
         function switchTab(tabName) {
             console.log(`🔄 Switching to tab: ${tabName}`);
             
@@ -1084,6 +1095,9 @@
                 console.error(`❌ Invalid tab name: ${tabName}`);
                 return;
             }
+            
+            // Store the current active tab
+            lastActiveTab = tabName;
             
             // Remove active class from all tabs and contents
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -1102,14 +1116,12 @@
                 tabContent.classList.add('active');
                 console.log(`✅ Tab ${tabName} activated successfully`);
                 
-                // Trigger any tab-specific actions
-                if (tabName === 'answer') {
-                    // Ensure quiz data is loaded when switching to answer tab
+                // Trigger any tab-specific actions only once when switching
+                if (tabName === 'answer' && !quizDataLoaded && currentConnection) {
+                    // Load quiz data with a small delay to ensure tab is fully activated
                     setTimeout(() => {
-                        if (!quizDataLoaded && currentConnection) {
-                            console.log('🔄 Loading quiz data for answer tab...');
-                            loadQuizData();
-                        }
+                        console.log('🔄 Loading quiz data for newly activated answer tab...');
+                        loadQuizData();
                     }, 100);
                 }
             } else {
@@ -1402,9 +1414,17 @@
 
         // Auto-load quiz data when switching to answer tab (once per session)
         let quizDataLoaded = false;
+        let quizDataLoading = false; // Prevent multiple simultaneous requests
+        
         function checkForQuizData() {
-            if (currentConnection && document.getElementById('answerTab').classList.contains('active') && !quizDataLoaded) {
-                loadQuizData();
+            // Only load quiz data if we're specifically on the answer tab and haven't loaded it yet
+            const answerTab = document.getElementById('answerTab');
+            if (currentConnection && answerTab && answerTab.classList.contains('active') && !quizDataLoaded && !quizDataLoading) {
+                console.log('🔄 Loading quiz data for answer tab...');
+                quizDataLoading = true;
+                loadQuizData().finally(() => {
+                    quizDataLoading = false;
+                });
                 quizDataLoaded = true; // Load only once to avoid interference
             }
         }
@@ -1847,26 +1867,38 @@
                 btn.removeAttribute('onclick');
                 
                 // Use a single event handler for both click and touch
+                // Track last interaction to prevent double-firing
+                let lastClickTime = 0;
+                
                 const handleTabClick = (e) => {
+                    const now = Date.now();
+                    
+                    // Prevent rapid double-clicks or touch+click combinations
+                    if (now - lastClickTime < 300) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return;
+                    }
+                    
+                    lastClickTime = now;
                     e.preventDefault();
                     e.stopPropagation();
                     
                     const tabNames = ['stats', 'answer', 'results'];
                     const tabName = tabNames[index];
                     
-                    console.log(`📱 Tab clicked: ${tabName}`);
+                    console.log(`📱 Tab activated: ${tabName} (via ${e.type})`);
                     switchTab(tabName);
                 };
                 
                 // Add click event
                 btn.addEventListener('click', handleTabClick);
                 
-                // Add touch event for mobile - but prevent double firing
-                btn.addEventListener('touchend', (e) => {
-                    // Only handle touch if no click happened recently
-                    e.preventDefault();
-                    handleTabClick(e);
-                });
+                // Add touch event for mobile with better debouncing
+                btn.addEventListener('touchend', handleTabClick);
+                
+                // Prevent context menu on long press (mobile)
+                btn.addEventListener('contextmenu', (e) => e.preventDefault());
             });
         });
 
@@ -2126,23 +2158,26 @@
             // Check for new questions if in manual mode
             await checkForNewQuestion();
             
-            // Check for medal results automatically
+            // Check for medal results automatically (only check, don't auto-switch tabs)
             if (currentConnection) {
                 try {
                     const response = await fetch(`${API_BASE}/medal/${currentConnection}`);
                     const data = await response.json();
                     
                     if (data.success && data.medal) {
-                        // Medal received! Show it automatically
+                        // Medal received! Show it but don't force tab switch
                         showMedalResult(data.medal);
+                        console.log('🏆 Medal result available in Results tab');
                     }
                 } catch (error) {
                     // Silent fail for medal check
                 }
             }
             
-            // Check for quiz data when in answer tab
-            checkForQuizData();
+            // Check for quiz data when in answer tab (less frequently)
+            if (currentConnection && lastActiveTab === 'answer') {
+                checkForQuizData();
+            }
         }, 3000); // Check more frequently for questions
 
         // Initialize page - try to restore session
