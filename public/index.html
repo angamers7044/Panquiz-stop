@@ -339,7 +339,7 @@
         <form id="joinForm">
             <div class="input-group">
                 <label for="pin">PIN della Partita</label>
-                <input type="text" id="pin" placeholder="Inserisci il PIN della partita" required>
+                <input type="number" id="pin" placeholder="Inserisci il PIN della partita" required min="0" max="999999" step="1">
             </div>
             
             <div class="input-group">
@@ -881,37 +881,30 @@
             }
         });
 
-        // Function to check and update current PIN
-        async function checkAndUpdateCurrentPIN() {
+        // Function to check current game info (without auto-updating PIN field)
+        async function checkCurrentGameInfo() {
             try {
                 const response = await fetch(`${API_BASE}/current-game`);
                 const data = await response.json();
                 
-                if (data.success && data.gameInfo && data.gameInfo.pin) {
-                    const currentPinInput = document.getElementById('pin');
-                    const newPin = data.gameInfo.pin;
-                    const oldPin = currentPinInput.value;
-                    
-                    if (newPin !== oldPin && newPin !== currentPlayId) {
-                        currentPinInput.value = newPin;
-                        console.log(`📌 PIN updated automatically: ${oldPin} → ${newPin}`);
-                        showStatus(`📌 PIN aggiornato automaticamente: ${newPin} - Riconnettendo...`, 'info');
+                if (data.success && data.gameInfo && data.gameInfo.playId) {
+                    // Update global PlayID if we have it (but don't change PIN field)
+                    if (data.gameInfo.playId !== currentPlayId) {
+                        currentPlayId = data.gameInfo.playId;
+                        console.log(`🎮 PlayID updated: ${currentPlayId}`);
                         
-                        // Update global PlayID if we have it
-                        if (data.gameInfo.playId) {
-                            currentPlayId = data.gameInfo.playId;
-                            console.log(`🎮 PlayID updated: ${currentPlayId}`);
+                        // Check if main player needs reconnection with current PIN
+                        const currentPinInput = document.getElementById('pin');
+                        if (currentPinInput.value) {
+                            await checkMainPlayerReconnection(currentPinInput.value);
                         }
                         
-                        // Check if main player needs reconnection
-                        await checkMainPlayerReconnection(newPin);
-                        
-                        // Trigger bot reconnection after PIN change
+                        // Trigger bot reconnection
                         await reconnectAllBots();
                     }
                 }
             } catch (error) {
-                console.log('Current PIN check failed:', error.message);
+                console.log('Current game info check failed:', error.message);
             }
         }
 
