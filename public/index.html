@@ -1324,14 +1324,22 @@
                 answerOptions.style.position = 'relative';
                 answerOptions.style.zIndex = '9999';
                 
-                // Also force show all buttons inside
+                // Also force show all buttons inside with brutal CSS
                 const buttons = answerOptions.querySelectorAll('button');
-                buttons.forEach(btn => {
+                buttons.forEach((btn, index) => {
                     btn.style.setProperty('display', 'block', 'important');
                     btn.style.setProperty('visibility', 'visible', 'important');
+                    btn.style.setProperty('background', 'red', 'important'); // BRUTAL TEST
+                    btn.style.setProperty('color', 'white', 'important');
+                    btn.style.setProperty('border', '2px solid black', 'important');
+                    btn.style.setProperty('padding', '20px', 'important');
+                    btn.style.setProperty('margin', '10px', 'important');
+                    btn.style.setProperty('font-size', '20px', 'important');
                     btn.style.opacity = '1';
                     btn.style.position = 'relative';
                     btn.style.zIndex = '10000';
+                    btn.style.width = '100%';
+                    btn.style.height = '60px';
                 });
                 
                 console.log('🔍 Buttons found:', buttons.length);
