@@ -1279,15 +1279,15 @@
                 answerOptionsExists: !!answerOptions
             });
             
+            // Always show A, B, C, D, E, F
+            const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
+            
             // Debug each button creation
             console.log('🔍 Button creation debug:');
             letters.forEach((letter, i) => {
                 const isCorrect = i === correctIndex;
                 console.log(`Button ${letter} (index ${i}): isCorrect = ${isCorrect}`);
             });
-            
-            // Always show A, B, C, D, E, F
-            const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
             
             const buttonHTML = letters.map((letter, i) => {
                 const answer = answers[i] || `Opzione ${letter}`;
