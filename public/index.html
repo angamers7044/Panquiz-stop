@@ -1268,23 +1268,32 @@
             questionTitle.textContent = `Domanda ${questionData.questionNumber || '?'}`;
             questionText.textContent = questionData.question || 'Testo domanda non disponibile';
             
-            // Create answer buttons A, B, C, D
-            const answers = questionData.answers || ['Risposta A', 'Risposta B', 'Risposta C', 'Risposta D'];
+            // Create answer buttons dynamically based on maxAnswers (2-6)
+            const maxAnswers = questionData.maxAnswers || 4;
+            const answers = questionData.answers || [];
             const correctIndex = questionData.correctAnswerIndex;
             
-            answerOptions.innerHTML = answers.map((answer, index) => {
-                const letter = ['A', 'B', 'C', 'D'][index];
-                const isCorrect = index === correctIndex;
+            // Letter mapping for up to 6 answers
+            const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
+            
+            // Create only the needed number of buttons
+            const buttonHTML = [];
+            for (let i = 0; i < maxAnswers; i++) {
+                const letter = letters[i];
+                const answer = answers[i] || `Risposta ${letter}`;
+                const isCorrect = i === correctIndex;
                 const buttonClass = isCorrect ? 'answer-btn correct' : 'answer-btn';
                 
-                return `
-                    <button class="${buttonClass}" onclick="sendManualAnswer(${index})" data-answer="${index}">
+                buttonHTML.push(`
+                    <button class="${buttonClass}" onclick="sendManualAnswer(${i})" data-answer="${i}">
                         <span class="answer-letter">${letter}</span>
                         <span class="answer-text">${answer}</span>
                         ${isCorrect ? '<span class="correct-indicator">✓</span>' : ''}
                     </button>
-                `;
-            }).join('');
+                `);
+            }
+            
+            answerOptions.innerHTML = buttonHTML.join('');
 
             // Clear previous feedback
             answerFeedback.innerHTML = '';
@@ -1544,7 +1553,8 @@
                     const answerFeedback = document.getElementById('answerFeedback');
                     const letter = result.answerLetter;
                     const wasCorrect = result.wasCorrect;
-                    const correctLetter = ['A', 'B', 'C', 'D'][result.correctAnswer];
+                    const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
+                    const correctLetter = letters[result.correctAnswer];
                     
                     answerFeedback.innerHTML = `
                         <div class="answer-result ${wasCorrect ? 'correct' : 'incorrect'}">

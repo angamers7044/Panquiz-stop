@@ -223,7 +223,7 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
                 // Store question for manual answer mode
                 connectionData.currentQuestion = {
                     question: questionData.question || 'Domanda in arrivo...',
-                    answers: questionData.answers || ['Risposta A', 'Risposta B', 'Risposta C', 'Risposta D'],
+                    answers: questionData.answers || [],
                     rightAnswer: rightAnswer,
                     maxAnswers: maxAnswers,
                     questionNumber: connectionData.questionsAnswered + 1,
@@ -403,12 +403,13 @@ app.post('/api/answer/:connectionId', (req, res) => {
             connectionData.lastChosenAnswer = answerIndex;
             connectionData.questionsAnswered++;
             
-            console.log(`✅ Manual answer sent for ${connectionData.playerName}: ${answerIndex} (${['A','B','C','D'][answerIndex]})`);
+            const letters = ['A','B','C','D','E','F'];
+            console.log(`✅ Manual answer sent for ${connectionData.playerName}: ${answerIndex} (${letters[answerIndex]})`);
             
             res.json({
                 success: true,
                 answerSent: answerIndex,
-                answerLetter: ['A','B','C','D'][answerIndex],
+                answerLetter: letters[answerIndex],
                 correctAnswer: connectionData.currentQuestion.correctAnswerIndex,
                 wasCorrect: answerIndex === connectionData.currentQuestion.correctAnswerIndex
             });
