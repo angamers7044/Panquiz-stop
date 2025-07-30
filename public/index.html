@@ -413,28 +413,74 @@
         }
 
         .answer-option {
-            padding: 15px 20px;
-            border: 2px solid #e1e1e1;
-            border-radius: 10px;
+            padding: 20px;
+            border: 3px solid #e1e1e1;
+            border-radius: 15px;
             background: white;
             cursor: pointer;
             transition: all 0.3s;
-            font-size: 16px;
             text-align: left;
             position: relative;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            min-height: 70px;
+        }
+
+        .answer-letter {
+            background: #667eea;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .answer-text {
+            font-size: 16px;
+            font-weight: 500;
+            flex: 1;
         }
 
         .answer-option:hover {
             border-color: #667eea;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .answer-option:hover .answer-letter {
+            background: #5a67d8;
+            transform: scale(1.1);
         }
 
         .answer-option.correct {
-            border-color: #28a745;
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            color: white;
-            font-weight: bold;
+            border-color: #28a745 !important;
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%) !important;
+            box-shadow: 0 0 20px rgba(40, 167, 69, 0.4) !important;
+            animation: greenPulse 2s ease-in-out infinite;
+        }
+
+        .answer-option.correct .answer-letter {
+            background: #28a745 !important;
+            color: white !important;
+            font-weight: bold !important;
+            transform: scale(1.2);
+            box-shadow: 0 0 15px rgba(40, 167, 69, 0.6);
+        }
+
+        .answer-option.correct .answer-text {
+            color: #155724 !important;
+            font-weight: bold !important;
+        }
+
+        @keyframes greenPulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(40, 167, 69, 0.4); }
+            50% { box-shadow: 0 0 30px rgba(40, 167, 69, 0.7); }
         }
 
         .answer-option.selected {
@@ -443,9 +489,24 @@
             color: white;
         }
 
+        .answer-option.selected .answer-letter {
+            background: white;
+            color: #667eea;
+        }
+
+        .answer-option.selected .answer-text {
+            color: white;
+        }
+
         .answer-option.disabled {
             opacity: 0.6;
             cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .answer-option.disabled:hover {
+            transform: none !important;
+            box-shadow: none !important;
         }
 
         .answer-feedback {
@@ -477,6 +538,23 @@
             
             .answer-options {
                 grid-template-columns: 1fr;
+                gap: 10px;
+            }
+            
+            .answer-option {
+                min-height: 60px;
+                padding: 15px;
+                gap: 10px;
+            }
+            
+            .answer-letter {
+                width: 35px;
+                height: 35px;
+                font-size: 16px;
+            }
+            
+            .answer-text {
+                font-size: 14px;
             }
             
             .tab-btn {
@@ -775,14 +853,22 @@
             answerFeedback.innerHTML = '';
             answerFeedback.className = 'answer-feedback';
 
-            // Generate answer options
+            // Generate answer options (A, B, C, D)
             answerOptions.innerHTML = '';
             
             if (questionData.answers) {
+                const letters = ['A', 'B', 'C', 'D'];
                 questionData.answers.forEach((answer, index) => {
                     const option = document.createElement('button');
                     option.className = 'answer-option';
-                    option.textContent = answer;
+                    
+                    // Create letter label and answer text
+                    const letter = letters[index] || (index + 1).toString();
+                    option.innerHTML = `
+                        <div class="answer-letter">${letter}</div>
+                        <div class="answer-text">${answer}</div>
+                    `;
+                    
                     option.onclick = () => selectAnswer(index);
                     
                     // Highlight correct answer in green if not auto mode
