@@ -1272,6 +1272,12 @@
             const answers = questionData.answers || [];
             const correctIndex = questionData.correctAnswerIndex;
             
+            console.log('🔍 Debug questionData:', {
+                answers: answers,
+                correctIndex: correctIndex,
+                answerOptionsExists: !!answerOptions
+            });
+            
             // Always show A, B, C, D, E, F
             const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
             
@@ -1289,7 +1295,14 @@
                 `;
             });
             
-            answerOptions.innerHTML = buttonHTML.join('');
+            console.log('🔍 Button HTML generated:', buttonHTML.length, 'buttons');
+            
+            if (answerOptions) {
+                answerOptions.innerHTML = buttonHTML.join('');
+                console.log('✅ Buttons inserted into answerOptions');
+            } else {
+                console.error('❌ answerOptions element not found!');
+            }
 
             // Clear previous feedback
             answerFeedback.innerHTML = '';
