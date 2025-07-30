@@ -1265,9 +1265,9 @@
             questionArea.style.display = 'block';
             console.log('🔍 questionArea shown:', questionArea.style.display);
             
-            // Set question content
+            // Set question content (hide question text, show only buttons)
             questionTitle.textContent = `Domanda ${questionData.questionNumber || '?'}`;
-            questionText.textContent = questionData.question || 'Testo domanda non disponibile';
+            questionText.style.display = 'none'; // Hide question text
             
             // Create answer buttons A-F (always 6 buttons)
             const answers = questionData.answers || [];
