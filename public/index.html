@@ -1268,30 +1268,26 @@
             questionTitle.textContent = `Domanda ${questionData.questionNumber || '?'}`;
             questionText.textContent = questionData.question || 'Testo domanda non disponibile';
             
-            // Create answer buttons dynamically based on maxAnswers (2-6)
-            const maxAnswers = questionData.maxAnswers || 4;
+            // Create answer buttons A-F (always 6 buttons)
             const answers = questionData.answers || [];
             const correctIndex = questionData.correctAnswerIndex;
             
-            // Letter mapping for up to 6 answers
+            // Always show A, B, C, D, E, F
             const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
             
-            // Create only the needed number of buttons
-            const buttonHTML = [];
-            for (let i = 0; i < maxAnswers; i++) {
-                const letter = letters[i];
+            const buttonHTML = letters.map((letter, i) => {
                 const answer = answers[i] || `Risposta ${letter}`;
                 const isCorrect = i === correctIndex;
                 const buttonClass = isCorrect ? 'answer-btn correct' : 'answer-btn';
                 
-                buttonHTML.push(`
+                return `
                     <button class="${buttonClass}" onclick="sendManualAnswer(${i})" data-answer="${i}">
                         <span class="answer-letter">${letter}</span>
                         <span class="answer-text">${answer}</span>
                         ${isCorrect ? '<span class="correct-indicator">✓</span>' : ''}
                     </button>
-                `);
-            }
+                `;
+            });
             
             answerOptions.innerHTML = buttonHTML.join('');
 
