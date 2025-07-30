@@ -1279,6 +1279,13 @@
                 answerOptionsExists: !!answerOptions
             });
             
+            // Debug each button creation
+            console.log('🔍 Button creation debug:');
+            letters.forEach((letter, i) => {
+                const isCorrect = i === correctIndex;
+                console.log(`Button ${letter} (index ${i}): isCorrect = ${isCorrect}`);
+            });
+            
             // Always show A, B, C, D, E, F
             const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
             
@@ -1307,9 +1314,23 @@
                     innerHTML: answerOptions.innerHTML.substring(0, 100) + '...'
                 });
                 
-                // Force show the answer options
-                answerOptions.style.display = 'flex';
-                answerOptions.style.visibility = 'visible';
+                // Force show the answer options with strong CSS
+                answerOptions.style.display = 'flex !important';
+                answerOptions.style.flexDirection = 'column';
+                answerOptions.style.visibility = 'visible !important';
+                answerOptions.style.opacity = '1';
+                answerOptions.style.height = 'auto';
+                answerOptions.style.overflow = 'visible';
+                
+                // Also force show all buttons inside
+                const buttons = answerOptions.querySelectorAll('button');
+                buttons.forEach(btn => {
+                    btn.style.display = 'block !important';
+                    btn.style.visibility = 'visible !important';
+                    btn.style.opacity = '1';
+                });
+                
+                console.log('🔍 Buttons found:', buttons.length);
                 
             } else {
                 console.error('❌ answerOptions element not found!');
