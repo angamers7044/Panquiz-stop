@@ -83,11 +83,15 @@ async function fetchGameData(playId) {
     
     // Try various possible endpoints to get quiz data
     const possibleEndpoints = [
+        `https://play.panquiz.com/api/v1/player/start/${playId}`,
+        `https://play.panquiz.com/api/v1/game/start/${playId}`,
+        `https://play.panquiz.com/api/v1/game/${playId}/start`,
         `https://play.panquiz.com/api/v1/game/${playId}`,
         `https://play.panquiz.com/api/v1/player/join/${playId}`,
         `https://play.panquiz.com/api/v1/quiz/${playId}`,
         `https://play.panquiz.com/api/v1/game/data/${playId}`,
-        `https://play.panquiz.com/api/v1/player/start/${playId}`
+        `https://play.panquiz.com/api/v1/player/${playId}/quiz`,
+        `https://play.panquiz.com/api/v1/start/${playId}`
     ];
 
     for (const endpoint of possibleEndpoints) {
@@ -217,14 +221,12 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
         try {
             const parsedMessage = JSON.parse(message.toString().replace('\u001e', ''));
             
-            // Log all messages to find quiz data
+            // Process specific message types
             if (parsedMessage.type === 1) {
-                console.log(`📡 WebSocket message for ${playerName}:`, {
-                    target: parsedMessage.target,
-                    arguments: parsedMessage.arguments ? parsedMessage.arguments.length + ' args' : 'no args'
-                });
-                
-
+                // Optional: Log important messages only
+                if (['ShowQuestion', 'PlayAgain', 'ShowMedal', 'PlayerDisconnected'].includes(parsedMessage.target)) {
+                    console.log(`📡 ${parsedMessage.target} message for ${playerName}`);
+                }
             }
 
             if (message.toString() === "{}\u001e") {
