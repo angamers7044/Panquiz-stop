@@ -380,9 +380,9 @@
             <h3>🤖 Gestione Bot</h3>
             <div style="font-size: 0.9em; color: #6c757d; margin-bottom: 15px;">
                 <p style="margin-bottom: 8px;">🔄 <strong>Auto-Riconnessione:</strong> I bot si riconnettono automaticamente quando l'host riavvia la partita!</p>
-                <p style="margin-bottom: 8px;">📌 <strong>PIN Automatico:</strong> Il PIN si aggiorna automaticamente quando l'host riavvia.</p>
-                <button onclick="checkAndUpdateCurrentPIN()" style="background: #17a2b8; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.8em; cursor: pointer; margin-right: 8px;">
-                    🔍 Controlla PIN Ora
+                <p style="margin-bottom: 8px;">📌 <strong>PIN Manuale:</strong> Inserisci sempre il PIN corretto manualmente.</p>
+                <button onclick="checkCurrentGameInfo()" style="background: #17a2b8; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.8em; cursor: pointer; margin-right: 8px;">
+                    🔍 Info Partita
                 </button>
                 <button onclick="reconnectAllBots()" style="background: #28a745; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.8em; cursor: pointer;">
                     🔄 Riconnetti Bot
@@ -578,9 +578,8 @@
                     elements.connectionStatus.style.color = '#dc3545';
                     elements.gameStatus.textContent = 'Disconnesso dalla partita - Tentativo riconnessione...';
                     
-                    // Attempt automatic reconnection if we have current game info
-                    console.log('🔄 Main player disconnected, checking for reconnection...');
-                    await checkAndUpdateCurrentPIN(); // This will trigger reconnection if PIN changed
+                    // Log disconnection but don't auto-reconnect
+                    console.log('🔄 Main player disconnected');
                     return;
                 }
 
@@ -881,31 +880,10 @@
             }
         });
 
-        // Function to check current game info (without auto-updating PIN field)
+        // Function to check current game info (no auto PIN update)
         async function checkCurrentGameInfo() {
-            try {
-                const response = await fetch(`${API_BASE}/current-game`);
-                const data = await response.json();
-                
-                if (data.success && data.gameInfo && data.gameInfo.playId) {
-                    // Update global PlayID if we have it (but don't change PIN field)
-                    if (data.gameInfo.playId !== currentPlayId) {
-                        currentPlayId = data.gameInfo.playId;
-                        console.log(`🎮 PlayID updated: ${currentPlayId}`);
-                        
-                        // Check if main player needs reconnection with current PIN
-                        const currentPinInput = document.getElementById('pin');
-                        if (currentPinInput.value) {
-                            await checkMainPlayerReconnection(currentPinInput.value);
-                        }
-                        
-                        // Trigger bot reconnection
-                        await reconnectAllBots();
-                    }
-                }
-            } catch (error) {
-                console.log('Current game info check failed:', error.message);
-            }
+            // This function can be called manually if needed, but doesn't auto-update anything
+            console.log('Game info check called (no auto-updates)');
         }
 
         // Function to check and reconnect main player if needed
@@ -1018,10 +996,10 @@
             }
         }
 
-        // Auto check for PIN updates every 15 seconds
+        // Auto refresh bots every 30 seconds (no PIN auto-update)
         setInterval(async () => {
             if (currentPlayId) {
-                // Refresh bots status
+                // Refresh bots status only
                 try {
                     const response = await fetch(`${API_BASE}/connections/game/${currentPlayId}`);
                     const data = await response.json();
@@ -1037,9 +1015,7 @@
                     console.log('Auto refresh failed:', error);
                 }
             }
-            // Always check for PIN updates (even if no bots active)
-            await checkAndUpdateCurrentPIN();
-        }, 15000);
+        }, 30000);
 
         // Handle page unload
         window.addEventListener('beforeunload', () => {
