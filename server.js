@@ -103,7 +103,13 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
         connectionData.lastActivity = Date.now();
         
         try {
+            // Log ALL messages to catch medal/results events
+            console.log(`📨 [${playerName}] RAW MESSAGE: ${message.toString()}`);
+            
             const parsedMessage = JSON.parse(message.toString().replace('\u001e', ''));
+            
+            // Log parsed message structure
+            console.log(`📋 [${playerName}] PARSED MESSAGE:`, JSON.stringify(parsedMessage, null, 2));
 
             if (message.toString() === "{}\u001e") {
                 const playerJoined = {
@@ -112,7 +118,7 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
                     arguments: [playId, playerName]
                 };
                 ws.send(JSON.stringify(playerJoined) + '\u001e');
-                console.log(`Player ${playerName} joined game ${playId}`);
+                console.log(`🤝 Player ${playerName} joined game ${playId}`);
             }
 
             if (parsedMessage.type === 1 && parsedMessage.target === "ShowQuestion") {
@@ -120,7 +126,7 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
                 const rightAnswer = questionData.rightAnswer;
                 const maxAnswers = questionData.maxAnswers;
 
-                console.log(`Question received for ${playerName}, answering...`);
+                console.log(`❓ Question received for ${playerName}, answering...`);
 
                 const answerMapping = {};
                 for (let i = 0; i < maxAnswers; i++) {
@@ -140,17 +146,47 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
                     };
                     ws.send(JSON.stringify(answerMessage) + '\u001e');
                     connectionData.questionsAnswered++;
-                    console.log(`Answer sent for ${playerName}: ${mappedAnswer} (Total: ${connectionData.questionsAnswered})`);
+                    console.log(`✅ Answer sent for ${playerName}: ${mappedAnswer} (Total: ${connectionData.questionsAnswered})`);
+                }
+            }
+
+            // Check for potential medal/results events
+            if (parsedMessage.type === 1) {
+                const target = parsedMessage.target;
+                
+                // Look for potential medal/results related events
+                if (target && (
+                    target.includes('Result') || 
+                    target.includes('Medal') || 
+                    target.includes('Achievement') || 
+                    target.includes('Award') || 
+                    target.includes('Score') || 
+                    target.includes('End') || 
+                    target.includes('Finish') || 
+                    target.includes('Complete') ||
+                    target.includes('Summary') ||
+                    target.includes('Stats') ||
+                    target.includes('Leaderboard') ||
+                    target.includes('Ranking')
+                )) {
+                    console.log(`🏅 [${playerName}] POTENTIAL MEDAL/RESULTS EVENT: ${target}`);
+                    console.log(`🏅 [${playerName}] ARGUMENTS:`, JSON.stringify(parsedMessage.arguments, null, 2));
+                }
+                
+                // Log ALL events we haven't seen before
+                if (target !== "ShowQuestion" && target !== "PlayerDisconnected") {
+                    console.log(`🔍 [${playerName}] UNKNOWN EVENT: ${target}`);
+                    console.log(`🔍 [${playerName}] ARGUMENTS:`, JSON.stringify(parsedMessage.arguments, null, 2));
                 }
             }
 
             if (parsedMessage.type === 1 && parsedMessage.target === "PlayerDisconnected" && parsedMessage.arguments[0] === true) {
-                console.log(`Player ${playerName} disconnected from game`);
+                console.log(`👋 Player ${playerName} disconnected from game`);
                 connectionData.connected = false;
                 ws.close();
             }
         } catch (error) {
-            console.error('Message parsing error:', error);
+            console.error('❌ Message parsing error:', error);
         }
     });
 

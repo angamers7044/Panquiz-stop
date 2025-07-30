@@ -4,14 +4,22 @@ export function establishWebSocketConnection(websocketUrl, playId, playerName) {
     const ws = new WebSocket(websocketUrl);
 
     ws.on('open', () => {
+        console.log('🔗 WebSocket connection opened');
         const handshake = { protocol: "json", version: 1 };
         ws.send(JSON.stringify(handshake) + '\u001e');
     });
 
     ws.on('message', (message) => {
+        // Log ALL messages to catch medal/results events
+        console.log(`📨 RAW MESSAGE: ${message.toString()}`);
+        
         const parsedMessage = JSON.parse(message.toString().replace('\u001e', ''));
+        
+        // Log parsed message structure
+        console.log(`📋 PARSED MESSAGE:`, JSON.stringify(parsedMessage, null, 2));
 
         if (message.toString() === "{}\u001e") {
+            console.log('🤝 Sending PlayerJoined message');
             const playerJoined = {
                 type: 1,
                 target: "PlayerJoined",
@@ -21,6 +29,7 @@ export function establishWebSocketConnection(websocketUrl, playId, playerName) {
         }
 
         if (parsedMessage.type === 1 && parsedMessage.target === "ShowQuestion") {
+            console.log('❓ Question received, processing...');
             const questionData = parsedMessage.arguments[0];
             const rightAnswer = questionData.rightAnswer;
             const maxAnswers = questionData.maxAnswers;
@@ -36,6 +45,7 @@ export function establishWebSocketConnection(websocketUrl, playId, playerName) {
             const mappedAnswer = answerMapping[rightAnswer];
 
             if (mappedAnswer !== undefined) {
+                console.log(`✅ Sending answer: ${mappedAnswer}`);
                 const answerMessage = {
                     type: 1,
                     target: "AnswerGivenFromPlayer",
@@ -45,11 +55,39 @@ export function establishWebSocketConnection(websocketUrl, playId, playerName) {
             }
         }
 
+        // Check for potential medal/results events
+        if (parsedMessage.type === 1) {
+            const target = parsedMessage.target;
+            
+            // Look for potential medal/results related events
+            if (target && (
+                target.includes('Result') || 
+                target.includes('Medal') || 
+                target.includes('Achievement') || 
+                target.includes('Award') || 
+                target.includes('Score') || 
+                target.includes('End') || 
+                target.includes('Finish') || 
+                target.includes('Complete') ||
+                target.includes('Summary') ||
+                target.includes('Stats')
+            )) {
+                console.log(`🏅 POTENTIAL MEDAL/RESULTS EVENT: ${target}`);
+                console.log(`🏅 ARGUMENTS:`, JSON.stringify(parsedMessage.arguments, null, 2));
+            }
+        }
+
         if (parsedMessage.type === 1 && parsedMessage.target === "PlayerDisconnected" && parsedMessage.arguments[0] === true) {
+            console.log('👋 Player disconnected');
             ws.close();
         }
     });
 
-    ws.on('error', () => {});
-    ws.on('close', () => {});
+    ws.on('error', (error) => {
+        console.error('❌ WebSocket error:', error);
+    });
+    
+    ws.on('close', () => {
+        console.log('🔌 WebSocket connection closed');
+    });
 }
