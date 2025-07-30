@@ -834,9 +834,9 @@
         <div class="game-info" id="gameInfo">
             <!-- Tab Navigation -->
             <div class="tab-navigation">
-                <button class="tab-btn active" onclick="switchTab('stats'); return false;">📊 Statistiche</button>
-                <button class="tab-btn" onclick="switchTab('answer'); return false;">🎯 Answer</button>
-                <button class="tab-btn" onclick="switchTab('results'); return false;">🏆 Risultati</button>
+                <button class="tab-btn active">📊 Statistiche</button>
+                <button class="tab-btn">🎯 Answer</button>
+                <button class="tab-btn">🏆 Risultati</button>
             </div>
 
             <!-- Stats Tab -->
@@ -1078,23 +1078,40 @@
         function switchTab(tabName) {
             console.log(`🔄 Switching to tab: ${tabName}`);
             
+            // Validate tab name
+            const validTabs = ['stats', 'answer', 'results'];
+            if (!validTabs.includes(tabName)) {
+                console.error(`❌ Invalid tab name: ${tabName}`);
+                return;
+            }
+            
             // Remove active class from all tabs and contents
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
             
-            // Find and activate the correct tab button
+            // Find and activate the correct tab button by index to avoid text matching issues
             const tabButtons = document.querySelectorAll('.tab-btn');
-            tabButtons.forEach(btn => {
-                if (btn.textContent.includes('Statistiche') && tabName === 'stats') btn.classList.add('active');
-                if (btn.textContent.includes('Answer') && tabName === 'answer') btn.classList.add('active');
-                if (btn.textContent.includes('Risultati') && tabName === 'results') btn.classList.add('active');
-            });
+            const tabIndex = validTabs.indexOf(tabName);
+            if (tabButtons[tabIndex]) {
+                tabButtons[tabIndex].classList.add('active');
+            }
             
             // Activate the corresponding content
             const tabContent = document.getElementById(tabName + 'Tab');
             if (tabContent) {
                 tabContent.classList.add('active');
                 console.log(`✅ Tab ${tabName} activated successfully`);
+                
+                // Trigger any tab-specific actions
+                if (tabName === 'answer') {
+                    // Ensure quiz data is loaded when switching to answer tab
+                    setTimeout(() => {
+                        if (!quizDataLoaded && currentConnection) {
+                            console.log('🔄 Loading quiz data for answer tab...');
+                            loadQuizData();
+                        }
+                    }, 100);
+                }
             } else {
                 console.error(`❌ Tab content ${tabName}Tab not found`);
             }
@@ -1339,14 +1356,24 @@
             
             try {
                 showStatus('🔄 Caricamento dati quiz...', 'info');
+                console.log(`🔍 Requesting quiz data for connection: ${currentConnection}`);
+                
                 const response = await fetch(`${API_BASE}/quiz/${currentConnection}`);
                 const data = await response.json();
+                
+                console.log('📋 Quiz API response:', data);
                 
                 if (data.success && data.quiz && data.quiz.questions) {
                     showQuizPreview(data.quiz.questions);
                     showStatus(`📚 ${data.quiz.questions.length} domande caricate!`, 'success');
                 } else {
-                    showStatus('❌ Dati quiz non disponibili', 'error');
+                    console.log('❌ Quiz data not available:', {
+                        success: data.success,
+                        hasQuiz: !!data.quiz,
+                        hasQuestions: !!(data.quiz && data.quiz.questions),
+                        message: data.message
+                    });
+                    showStatus(data.message || '❌ Dati quiz non disponibili', 'error');
                 }
             } catch (error) {
                 console.error('Error loading quiz data:', error);
@@ -1816,27 +1843,29 @@
         document.addEventListener('DOMContentLoaded', () => {
             const tabButtons = document.querySelectorAll('.tab-btn');
             tabButtons.forEach((btn, index) => {
-                btn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    
-                    const tabNames = ['stats', 'answer', 'results'];
-                    const tabName = tabNames[index];
-                    
-                    console.log(`📱 Mobile tab click: ${tabName}`);
-                    switchTab(tabName);
-                });
+                // Remove any existing onclick handlers to prevent conflicts
+                btn.removeAttribute('onclick');
                 
-                // Also handle touch events for mobile
-                btn.addEventListener('touchend', (e) => {
+                // Use a single event handler for both click and touch
+                const handleTabClick = (e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     
                     const tabNames = ['stats', 'answer', 'results'];
                     const tabName = tabNames[index];
                     
-                    console.log(`👆 Touch tab: ${tabName}`);
+                    console.log(`📱 Tab clicked: ${tabName}`);
                     switchTab(tabName);
+                };
+                
+                // Add click event
+                btn.addEventListener('click', handleTabClick);
+                
+                // Add touch event for mobile - but prevent double firing
+                btn.addEventListener('touchend', (e) => {
+                    // Only handle touch if no click happened recently
+                    e.preventDefault();
+                    handleTabClick(e);
                 });
             });
         });

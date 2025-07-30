@@ -110,7 +110,12 @@ async function fetchGameData(playId) {
 
             if (response.ok) {
                 const data = await response.json();
-                console.log(`✅ Success from ${endpoint}:`, data);
+                console.log(`✅ Success from ${endpoint}:`, {
+                    hasQuiz: !!data.quiz,
+                    hasQuestions: !!data.questions,
+                    keys: Object.keys(data).slice(0, 10), // Show first 10 keys
+                    dataStructure: typeof data
+                });
                 
                 // Check if this response contains quiz data
                 if (data.quiz && data.quiz.questions) {
@@ -129,6 +134,25 @@ async function fetchGameData(playId) {
                     });
                     return { quiz: { questions: data.questions } };
                 }
+                
+                // Check for any nested objects that might contain quiz data
+                Object.keys(data).forEach(key => {
+                    const value = data[key];
+                    if (value && typeof value === 'object') {
+                        if (value.questions) {
+                            console.log(`🔍 Found questions in ${endpoint}.${key}:`, {
+                                questions: value.questions.length,
+                                firstQuestion: value.questions[0]?.text?.substring(0, 50) + '...'
+                            });
+                        }
+                        if (value.quiz && value.quiz.questions) {
+                            console.log(`🔍 Found quiz in ${endpoint}.${key}:`, {
+                                questions: value.quiz.questions.length,
+                                firstQuestion: value.quiz.questions[0]?.text?.substring(0, 50) + '...'
+                            });
+                        }
+                    }
+                });
             } else {
                 console.log(`❌ Failed ${endpoint}: ${response.status} ${response.statusText}`);
             }
