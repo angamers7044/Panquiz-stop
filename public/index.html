@@ -1265,8 +1265,8 @@
             questionArea.style.display = 'block';
             console.log('🔍 questionArea shown:', questionArea.style.display);
             
-            // Set question content (hide question text, show only buttons)
-            questionTitle.textContent = `Domanda ${questionData.questionNumber || '?'}`;
+            // Hide both question title and text, show only buttons
+            questionTitle.style.display = 'none'; // Hide question title
             questionText.style.display = 'none'; // Hide question text
             
             // Create answer buttons A-F (always 6 buttons)
