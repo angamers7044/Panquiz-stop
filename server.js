@@ -168,22 +168,38 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
 
             // Handle ShowMedal event specifically
             if (parsedMessage.type === 1 && parsedMessage.target === "ShowMedal") {
-                const medalData = parsedMessage.arguments[0];
-                log.medal(playerName, `🏅 MEDAL AWARDED! Medal ID: ${medalData}`);
+                const rankingCode = parsedMessage.arguments[0];
                 
-                // Store medal data
-                if (!connectionData.medals) connectionData.medals = [];
-                connectionData.medals.push({
-                    event: "ShowMedal",
-                    medalId: medalData,
-                    timestamp: new Date().toISOString(),
-                    playerName: playerName
-                });
+                // Decode medal ranking: 0=3rd place, 1=2nd place, 2=1st place
+                const medalMapping = {
+                    0: { place: "3rd", emoji: "🥉", name: "Bronze Medal" },
+                    1: { place: "2nd", emoji: "🥈", name: "Silver Medal" },
+                    2: { place: "1st", emoji: "🥇", name: "Gold Medal" }
+                };
                 
-                // Update connection stats
-                connectionData.medalsEarned = (connectionData.medalsEarned || 0) + 1;
-                
-                log.success(`🎉 [${playerName}] Total medals earned: ${connectionData.medalsEarned}`);
+                const medal = medalMapping[rankingCode];
+                if (medal) {
+                    log.medal(playerName, `🏅 MEDAL AWARDED! ${medal.emoji} ${medal.name} (${medal.place} place)`);
+                    
+                    // Store medal data
+                    if (!connectionData.medals) connectionData.medals = [];
+                    connectionData.medals.push({
+                        event: "ShowMedal",
+                        rankingCode: rankingCode,
+                        place: medal.place,
+                        medalName: medal.name,
+                        emoji: medal.emoji,
+                        timestamp: new Date().toISOString(),
+                        playerName: playerName
+                    });
+                    
+                    // Update connection stats
+                    connectionData.medalsEarned = (connectionData.medalsEarned || 0) + 1;
+                    
+                    log.success(`🎉 [${playerName}] Earned ${medal.place} place! Total medals: ${connectionData.medalsEarned}`);
+                } else {
+                    log.medal(playerName, `🏅 UNKNOWN MEDAL RANKING: ${rankingCode}`);
+                }
             }
 
             // Check for other potential medal/results events
@@ -413,8 +429,11 @@ app.get('/api/medals/:connectionId', (req, res) => {
         res.json({
             success: true,
             medals: connectionData.medals || [],
+            medalEvents: connectionData.medalEvents || [],
+            medalsEarned: connectionData.medalsEarned || 0,
             playerName: connectionData.playerName,
-            questionsAnswered: connectionData.questionsAnswered
+            questionsAnswered: connectionData.questionsAnswered,
+            connected: connectionData.connected
         });
     } catch (error) {
         log.error(`Medal retrieval error: ${error.message}`);

@@ -57,9 +57,22 @@ export function establishWebSocketConnection(websocketUrl, playId, playerName) {
 
         // Handle ShowMedal event specifically
         if (parsedMessage.type === 1 && parsedMessage.target === "ShowMedal") {
-            const medalData = parsedMessage.arguments[0];
-            console.log(`🏅 MEDAL AWARDED! Medal ID: ${medalData}`);
-            console.log(`🎉 Player: ${playerName} earned a medal!`);
+            const rankingCode = parsedMessage.arguments[0];
+            
+            // Decode medal ranking: 0=3rd place, 1=2nd place, 2=1st place
+            const medalMapping = {
+                0: { place: "3rd", emoji: "🥉", name: "Bronze Medal" },
+                1: { place: "2nd", emoji: "🥈", name: "Silver Medal" },
+                2: { place: "1st", emoji: "🥇", name: "Gold Medal" }
+            };
+            
+            const medal = medalMapping[rankingCode];
+            if (medal) {
+                console.log(`🏅 MEDAL AWARDED! ${medal.emoji} ${medal.name} (${medal.place} place)`);
+                console.log(`🎉 Player: ${playerName} earned ${medal.place} place!`);
+            } else {
+                console.log(`🏅 UNKNOWN MEDAL RANKING: ${rankingCode}`);
+            }
         }
 
         // Check for other potential medal/results events

@@ -74,36 +74,28 @@ After deploying to Render, monitor your logs for:
 5. **Check Render logs immediately** after completion
 6. **Look for new WebSocket events** in the 10-second window
 
-## 🚀 Expected Medal WebSocket Events
+## 🚀 Medal WebSocket Event
 
-Based on typical quiz platforms, expect events like:
+**DISCOVERED!** The medal event has been identified:
 
 ```javascript
-// Game completion with medals
+// Medal awarded based on final ranking
 {
   "type": 1,
-  "target": "GameResults",
-  "arguments": [{
-    "medals": [
-      { "type": "perfect_score", "name": "Perfect Game" },
-      { "type": "speed_demon", "name": "Lightning Fast" }
-    ],
-    "finalScore": 1000,
-    "ranking": 1,
-    "totalPlayers": 10
-  }]
+  "target": "ShowMedal",
+  "arguments": [0]  // Ranking code
 }
+```
 
-// Achievement notification
-{
-  "type": 1, 
-  "target": "AchievementUnlocked",
-  "arguments": [{
-    "achievementId": "first_win",
-    "title": "First Victory",
-    "description": "Win your first game"
-  }]
-}
+### 🏅 Medal Ranking System:
+- **`0`** = 🥉 **Bronze Medal** (3rd place)
+- **`1`** = 🥈 **Silver Medal** (2nd place)  
+- **`2`** = 🥇 **Gold Medal** (1st place)
+
+### Expected Log Output:
+```
+🏅 2024-01-15T10:30:45.123Z - [PlayerName] MEDAL AWARDED! 🥇 Gold Medal (1st place)
+🎉 2024-01-15T10:30:45.124Z - [PlayerName] Earned 1st place! Total medals: 1
 ```
 
 ## 🏅 Medal Event Patterns
