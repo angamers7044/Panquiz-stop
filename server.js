@@ -298,34 +298,36 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
                 // Close current WebSocket
                 ws.close();
                 
-                // Auto-reconnect user and all bots after a short delay
+                // Auto-reconnect user and all bots after a short delay (simple approach)
                 setTimeout(async () => {
                     try {
-                        console.log(`🚀 Starting auto-reconnection to new game PIN: ${newPin}`);
+                        console.log(`🚀 Starting simple auto-reconnection to new PIN: ${newPin}`);
                         
-                        // 1. Reconnect main player
-                        console.log(`🔌 Auto-reconnecting main player: ${playerName}`);
-                        await autoReconnectPlayer(connectionId, newPin, playerName, connectionData);
-                        
-                        // 2. Reconnect all active bots
+                        // 1. Get list of bots that were connected to the old game
                         const activeBots = Array.from(activeConnections.values())
                             .filter(conn => conn.isBot && conn.connected && conn.playId === oldPlayId);
                         
-                        console.log(`🤖 Found ${activeBots.length} bots to reconnect`);
+                        const botNames = activeBots.map(bot => bot.playerName);
+                        console.log(`🤖 Found ${botNames.length} bots to recreate:`, botNames);
                         
-                        for (const botConnection of activeBots) {
+                        // 2. Simple reconnection: main player joins new PIN (like manual disconnect + reconnect)
+                        console.log(`🔌 Auto-reconnecting main player: ${playerName} to PIN ${newPin}`);
+                        await simpleReconnectPlayer(connectionId, newPin, playerName, connectionData.autoAnswer || false);
+                        
+                        // 3. Add bots to new game (like manually adding them again)
+                        for (const botName of botNames) {
                             try {
-                                console.log(`🤖 Auto-reconnecting bot: ${botConnection.playerName}`);
-                                await autoReconnectBot(botConnection.connectionId, newPin, botConnection.playerName);
+                                console.log(`🤖 Re-adding bot: ${botName} to new PIN ${newPin}`);
+                                await simpleAddBot(newPin, botName);
                             } catch (error) {
-                                console.error(`❌ Failed to reconnect bot ${botConnection.playerName}:`, error);
+                                console.error(`❌ Failed to re-add bot ${botName}:`, error);
                             }
                         }
                         
-                        console.log(`✅ Auto-reconnection completed for game ${newPin}`);
+                        console.log(`✅ Simple auto-reconnection completed for PIN ${newPin}`);
                         
                     } catch (error) {
-                        console.error(`❌ Auto-reconnection failed:`, error);
+                        console.error(`❌ Simple auto-reconnection failed:`, error);
                     }
                 }, 2000); // Wait 2 seconds before reconnecting
             }
@@ -1207,47 +1209,49 @@ async function autoReconnectBot(botConnectionId, newPin, botName) {
     }
 }
 
-// Auto-reconnect player after PlayAgain
-async function autoReconnectPlayer(connectionId, newPin, playerName, connectionData) {
+// Simple reconnect player (like manual disconnect + join new PIN)
+async function simpleReconnectPlayer(connectionId, newPin, playerName, autoAnswer) {
     try {
-        console.log(`🔌 Starting auto-reconnection for player ${playerName} to PIN ${newPin}`);
+        console.log(`🔌 Simple reconnection: ${playerName} joining PIN ${newPin}`);
         
-        // Join the new game
+        // Just join the new PIN (like user manually entering new PIN)
         const gameData = await startGame(newPin, playerName);
         
-        // Create new WebSocket connection
+        // Create fresh WebSocket connection with new connectionId
         const newConnection = createEnhancedWebSocketConnection(
             gameData.websocketUrl,
             gameData.playId,
             playerName,
-            connectionId,
+            connectionId, // Reuse same connectionId for continuity
             gameData
         );
         
-        // Update connection properties
-        newConnection.autoAnswer = connectionData.autoAnswer || false;
+        // Set basic properties
+        newConnection.autoAnswer = autoAnswer;
         newConnection.isBot = false;
-        newConnection.needsReconnection = false;
-        newConnection.reconnectedAt = Date.now();
         
-        console.log(`✅ Player ${playerName} auto-reconnected to game ${newPin}`);
+        console.log(`✅ Player ${playerName} simply reconnected to PIN ${newPin}`);
         return newConnection;
         
     } catch (error) {
-        console.error(`❌ Auto-reconnection failed for player ${playerName}:`, error);
+        console.error(`❌ Simple reconnection failed for ${playerName}:`, error);
         throw error;
     }
 }
 
-// Auto-reconnect bot after PlayAgain
-async function autoReconnectBot(botConnectionId, newPin, botName) {
+// Simple add bot (like manually adding bot to new game)
+async function simpleAddBot(newPin, botName) {
     try {
-        console.log(`🤖 Starting auto-reconnection for bot ${botName} to PIN ${newPin}`);
+        console.log(`🤖 Simply adding bot ${botName} to PIN ${newPin}`);
         
-        // Join the new game
+        // Generate new connectionId for bot
+        const { v4: uuidv4 } = await import('uuid');
+        const botConnectionId = uuidv4();
+        
+        // Join the new game (fresh start)
         const gameData = await startGame(newPin, botName);
         
-        // Create new WebSocket connection for bot
+        // Create fresh bot connection
         const newConnection = createEnhancedWebSocketConnection(
             gameData.websocketUrl,
             gameData.playId,
@@ -1256,17 +1260,15 @@ async function autoReconnectBot(botConnectionId, newPin, botName) {
             gameData
         );
         
-        // Restore bot properties
+        // Set bot properties
         newConnection.autoAnswer = true;
         newConnection.isBot = true;
-        newConnection.needsReconnection = false;
-        newConnection.reconnectedAt = Date.now();
         
-        console.log(`✅ Bot ${botName} auto-reconnected to game ${newPin}`);
+        console.log(`✅ Bot ${botName} simply added to PIN ${newPin}`);
         return newConnection;
         
     } catch (error) {
-        console.error(`❌ Auto-reconnection failed for bot ${botName}:`, error);
+        console.error(`❌ Simple bot add failed for ${botName}:`, error);
         throw error;
     }
 }
