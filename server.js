@@ -859,69 +859,6 @@ app.get('/api/connections', (req, res) => {
     res.json(connections);
 });
 
-// Auto-reconnect player after PlayAgain
-async function autoReconnectPlayer(connectionId, newPin, playerName, connectionData) {
-    try {
-        console.log(`🔌 Starting auto-reconnection for player ${playerName} to PIN ${newPin}`);
-        
-        // Join the new game
-        const gameData = await startGame(newPin, playerName);
-        
-        // Create new WebSocket connection
-        const newConnection = createEnhancedWebSocketConnection(
-            gameData.websocketUrl,
-            gameData.playId,
-            playerName,
-            connectionId,
-            gameData
-        );
-        
-        // Update connection properties
-        newConnection.autoAnswer = connectionData.autoAnswer || false;
-        newConnection.isBot = false;
-        newConnection.needsReconnection = false;
-        newConnection.reconnectedAt = Date.now();
-        
-        console.log(`✅ Player ${playerName} auto-reconnected to game ${newPin}`);
-        return newConnection;
-        
-    } catch (error) {
-        console.error(`❌ Auto-reconnection failed for player ${playerName}:`, error);
-        throw error;
-    }
-}
-
-// Auto-reconnect bot after PlayAgain
-async function autoReconnectBot(botConnectionId, newPin, botName) {
-    try {
-        console.log(`🤖 Starting auto-reconnection for bot ${botName} to PIN ${newPin}`);
-        
-        // Join the new game
-        const gameData = await startGame(newPin, botName);
-        
-        // Create new WebSocket connection for bot
-        const newConnection = createEnhancedWebSocketConnection(
-            gameData.websocketUrl,
-            gameData.playId,
-            botName,
-            botConnectionId,
-            gameData
-        );
-        
-        // Restore bot properties
-        newConnection.autoAnswer = true; // Bots always auto-answer
-        newConnection.isBot = true;
-        newConnection.needsReconnection = false;
-        newConnection.reconnectedAt = Date.now();
-        
-        console.log(`✅ Bot ${botName} auto-reconnected to game ${newPin}`);
-        return newConnection;
-        
-    } catch (error) {
-        console.error(`❌ Auto-reconnection failed for bot ${botName}:`, error);
-        throw error;
-    }
-}
 
 // Function to reconnect a bot after PlayAgain (legacy)
 async function reconnectBot(connectionId, newPlayId, playerName, newPin) {
