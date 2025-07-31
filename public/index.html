@@ -318,53 +318,41 @@
 
 
 
-        /* Tab Navigation */
-        .tab-navigation {
-            display: flex;
+        /* Info Sections */
+        .info-section {
+            background: rgba(255, 255, 255, 0.9);
             margin-bottom: 20px;
-            border-bottom: 2px solid #e1e1e1;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            border-left: 4px solid #667eea;
         }
 
-        .tab-btn {
-            background: none;
-            border: none;
-            padding: 10px 20px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-            color: #6c757d;
-            border-bottom: 2px solid transparent;
-            transition: all 0.3s;
-            -webkit-tap-highlight-color: transparent;
-            touch-action: manipulation;
-            user-select: none;
-            /* Enhanced mobile support */
-            -webkit-touch-callout: none;
-            -webkit-user-select: none;
-            -moz-user-select: none;
-            -ms-user-select: none;
-            min-height: 44px; /* Minimum touch target size for mobile */
+        .info-section h3 {
+            margin-top: 0;
+            color: #667eea;
+            font-size: 18px;
+            margin-bottom: 15px;
             display: flex;
             align-items: center;
-            justify-content: center;
+            gap: 8px;
         }
 
-        .tab-btn.active {
-            color: #667eea;
-            border-bottom-color: #667eea;
+        .info-section:last-child {
+            margin-bottom: 0;
         }
 
-        .tab-btn:hover {
-            color: #667eea;
-            background: rgba(102, 126, 234, 0.05);
-        }
-
-        .tab-content {
-            display: none;
-        }
-
-        .tab-content.active {
-            display: block;
+        /* Compact mobile layout */
+        @media (max-width: 768px) {
+            .info-section {
+                padding: 15px;
+                margin-bottom: 15px;
+            }
+            
+            .info-section h3 {
+                font-size: 16px;
+                margin-bottom: 12px;
+            }
         }
 
         /* Answer Mode */
@@ -932,15 +920,8 @@
         <div class="status" id="status"></div>
         
         <div class="game-info" id="gameInfo">
-            <!-- Tab Navigation -->
-            <div class="tab-navigation">
-                <button class="tab-btn active">📊 Statistiche</button>
-                <button class="tab-btn">🎯 Answer</button>
-                <button class="tab-btn">🏆 Risultati</button>
-            </div>
-
-            <!-- Stats Tab -->
-            <div id="statsTab" class="tab-content active">
+            <!-- Stats Section -->
+            <div class="info-section">
                 <h3>🎮 Stato della Partita</h3>
                 <div id="gameStatus">Connesso e pronto!</div>
                 <div class="stats">
@@ -964,8 +945,8 @@
                 </button>
             </div>
 
-            <!-- Answer Tab -->
-            <div id="answerTab" class="tab-content">
+            <!-- Answer Section -->
+            <div class="info-section">
                 <h3>🎯 Answer Mode</h3>
                 
                 <div class="answer-mode-selector">
@@ -1005,8 +986,8 @@
                 </div>
             </div>
 
-            <!-- Results Tab -->
-            <div id="resultsTab" class="tab-content">
+            <!-- Results Section -->
+            <div class="info-section">
                 <h3>🏆 Risultati Partita</h3>
                 
                 <div class="medal-area" id="medalArea" style="display: none;">
