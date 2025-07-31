@@ -2275,19 +2275,31 @@
             }
         });
 
-        // Function to check current game info and trigger reconnections (without changing PIN field)
+        // Function to check current game info and trigger reconnections (NOW UPDATES PIN FIELD TOO!)
         async function checkCurrentGameInfo() {
             try {
                 const response = await fetch(`${API_BASE}/current-game`);
                 const data = await response.json();
                 
                 if (data.success && data.gameInfo && data.gameInfo.playId) {
-                    // Update global PlayID if we have it (but DON'T change PIN field)
+                    let changed = false;
+                    
+                    // Update global PlayID if we have it
                     if (data.gameInfo.playId !== currentPlayId) {
                         currentPlayId = data.gameInfo.playId;
                         console.log(`🎮 PlayID updated: ${currentPlayId}`);
-                        
-                        // Trigger bot reconnection (but keep user's PIN intact)
+                        changed = true;
+                    }
+                    
+                    // Update PIN field if we have a new PIN (FIXED: now updates PIN field!)
+                    if (data.gameInfo.pin && data.gameInfo.pin !== document.getElementById('gamePin').value) {
+                        document.getElementById('gamePin').value = data.gameInfo.pin;
+                        console.log(`📌 PIN field updated to: ${data.gameInfo.pin}`);
+                        changed = true;
+                    }
+                    
+                    // Trigger bot reconnection if anything changed
+                    if (changed) {
                         await reconnectAllBots();
                     }
                 }
