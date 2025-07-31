@@ -301,13 +301,13 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
 
             if (parsedMessage.type === 1 && parsedMessage.target === "ShowMedal") {
                 const rankingCode = parsedMessage.arguments[0];
-                console.log(`🏆 Medal received for ${playerName}: ranking code ${rankingCode}`);
+                console.log(`🏆🏆🏆 MEDAL RECEIVED for ${playerName}: ranking code ${rankingCode} 🏆🏆🏆`);
                 
                 // Decode medal ranking: 0=3rd place, 1=2nd place, 2=1st place
                 const medalMapping = {
-                    0: { place: "3rd", emoji: "🥉", name: "Bronze Medal", italian: "terzo" },
-                    1: { place: "2nd", emoji: "🥈", name: "Silver Medal", italian: "secondo" },
-                    2: { place: "1st", emoji: "🥇", name: "Gold Medal", italian: "primo" }
+                    0: { place: "3rd", emoji: "🥉", name: "Bronze Medal", italian: "terzo", position: 0 },
+                    1: { place: "2nd", emoji: "🥈", name: "Silver Medal", italian: "secondo", position: 1 },
+                    2: { place: "1st", emoji: "🥇", name: "Gold Medal", italian: "primo", position: 2 }
                 };
                 
                 const medal = medalMapping[rankingCode];
@@ -316,8 +316,10 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
                     connectionData.medalPosition = rankingCode;
                     connectionData.medalData = medal;
                     connectionData.medalTimestamp = Date.now();
+                    connectionData.gameCompleted = true; // Mark game as completed
                     
-                    console.log(`🏅 ${playerName} ha ottenuto ${medal.emoji} ${medal.name} (${medal.italian} posto)!`);
+                    console.log(`🏅🏅🏅 ${playerName} ha ottenuto ${medal.emoji} ${medal.name} (${medal.italian} posto)! 🏅🏅🏅`);
+                    console.log(`📊 Medal data stored:`, medal);
                 } else {
                     console.log(`🏅 Unknown medal ranking code: ${rankingCode} for ${playerName}`);
                 }
@@ -732,19 +734,37 @@ app.get('/api/medal/:connectionId', (req, res) => {
             return res.status(404).json({ error: 'Connessione non trovata' });
         }
 
-        if (connection.medalPosition) {
-            // Medal position mapping: 1=second, 2=first, 3=third
-            const positionNames = { 1: 'secondo', 2: 'primo', 3: 'terzo' };
-            const medals = { 1: '🥈', 2: '🥇', 3: '🥉' };
+        if (connection.medalPosition !== undefined || connection.medalData) {
+            // Use medalData if available, otherwise create from medalPosition
+            let medalInfo;
             
-            res.json({
-                success: true,
-                medal: {
+            if (connection.medalData) {
+                // Use the detailed medal data stored from ShowMedal
+                medalInfo = {
+                    position: connection.medalData.position,
+                    positionName: connection.medalData.italian,
+                    emoji: connection.medalData.emoji,
+                    name: connection.medalData.name,
+                    timestamp: connection.medalTimestamp
+                };
+            } else {
+                // Fallback: Correct mapping 0=3rd, 1=2nd, 2=1st
+                const positionNames = { 0: 'terzo', 1: 'secondo', 2: 'primo' };
+                const medals = { 0: '🥉', 1: '🥈', 2: '🥇' };
+                
+                medalInfo = {
                     position: connection.medalPosition,
                     positionName: positionNames[connection.medalPosition] || `posizione ${connection.medalPosition}`,
                     emoji: medals[connection.medalPosition] || '🏆',
                     timestamp: connection.medalTimestamp
-                }
+                };
+            }
+            
+            console.log(`🏆 Returning medal data for ${connectionId}:`, medalInfo);
+            
+            res.json({
+                success: true,
+                medal: medalInfo
             });
         } else {
             res.json({

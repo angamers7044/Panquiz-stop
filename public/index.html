@@ -1571,7 +1571,7 @@
                 medalPosition.classList.add('second');
                 medalTitle.textContent = '👏 Ottimo Risultato! 👏';
                 medalSubtitle.textContent = 'Hai conquistato il secondo posto!';
-            } else if (medal.position === 3) { // Third place
+            } else if (medal.position === 0) { // Third place (FIXED: 0 = third place)
                 medalPosition.classList.add('third');
                 medalTitle.textContent = '🏆 Sul Podio! 🏆';
                 medalSubtitle.textContent = 'Hai conquistato il terzo posto!';
