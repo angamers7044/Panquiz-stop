@@ -1146,21 +1146,51 @@ async function autoReconnectBot(botConnectionId, newPin, botName) {
     }
 }
 
+// Helper function to start/join a game (replicates /api/join logic)
+async function startGame(pinCode, playerName) {
+    try {
+        // Validate PIN
+        const playId = await validateMatchPin(pinCode);
+        if (!playId) {
+            throw new Error(`Invalid PIN: ${pinCode}`);
+        }
+
+        // Fetch game data
+        const gameData = await fetchGameData(playId);
+
+        // Negotiate SignalR connection
+        const negotiation = await negotiateSignalRConnection();
+        if (!negotiation) {
+            throw new Error('Failed to negotiate SignalR connection');
+        }
+
+        return {
+            playId,
+            gameData,
+            websocketUrl: negotiation.websocketUrl,
+            negotiation
+        };
+    } catch (error) {
+        console.error(`❌ startGame failed for PIN ${pinCode}:`, error);
+        throw error;
+    }
+}
+
 // Simple reconnect player (like manual disconnect + join new PIN)
 async function simpleReconnectPlayer(connectionId, newPin, playerName, autoAnswer) {
     try {
         console.log(`🔌 Simple reconnection: ${playerName} joining PIN ${newPin}`);
         
         // Just join the new PIN (like user manually entering new PIN)
-        const gameData = await startGame(newPin, playerName);
+        const gameInfo = await startGame(newPin, playerName);
         
         // Create fresh WebSocket connection with new connectionId
         const newConnection = createEnhancedWebSocketConnection(
-            gameData.websocketUrl,
-            gameData.playId,
+            gameInfo.websocketUrl,
+            gameInfo.playId,
             playerName,
             connectionId, // Reuse same connectionId for continuity
-            gameData
+            gameInfo.gameData
         );
         
         // Set basic properties
@@ -1186,15 +1216,15 @@ async function simpleAddBot(newPin, botName) {
         const botConnectionId = uuidv4();
         
         // Join the new game (fresh start)
-        const gameData = await startGame(newPin, botName);
+        const gameInfo = await startGame(newPin, botName);
         
         // Create fresh bot connection
         const newConnection = createEnhancedWebSocketConnection(
-            gameData.websocketUrl,
-            gameData.playId,
+            gameInfo.websocketUrl,
+            gameInfo.playId,
             botName,
             botConnectionId,
-            gameData
+            gameInfo.gameData
         );
         
         // Set bot properties
