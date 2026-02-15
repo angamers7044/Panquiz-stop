@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel</title>
+    <style>
+        body {
+            background: linear-gradient(135deg, #b71c1c 0%, #212121 100%);
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .admin-container {
+            background: rgba(30, 30, 30, 0.98);
+            border-radius: 18px;
+            box-shadow: 0 8px 32px rgba(183,28,28,0.25);
+            padding: 40px 32px 32px 32px;
+            min-width: 350px;
+            max-width: 400px;
+            width: 100%;
+            text-align: center;
+        }
+        .admin-title {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 18px;
+            color: #ff5252;
+        }
+        .admin-label {
+            color: #ffbaba;
+            font-size: 1.1em;
+            margin-bottom: 10px;
+            display: block;
+        }
+        .admin-input {
+            width: 100%;
+            padding: 14px;
+            border-radius: 8px;
+            border: 2px solid #ff5252;
+            background: #212121;
+            color: #fff;
+            font-size: 1.1em;
+            margin-bottom: 18px;
+        }
+        .admin-btn {
+            background: linear-gradient(135deg, #ff5252 0%, #b71c1c 100%);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 28px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(183,28,28,0.18);
+            margin-bottom: 10px;
+        }
+        .admin-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .admin-error {
+            color: #ff5252;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-container">
+        <div class="admin-title">Admin Panel</div>
+        <form id="adminLoginForm">
+            <label class="admin-label" for="adminPass">Inserisci la passphrase di accesso:</label>
+            <input class="admin-input" type="password" id="adminPass" placeholder="Passphrase" required autofocus>
+            <button class="admin-btn" type="submit">Accedi</button>
+            <div class="admin-error" id="adminError"></div>
+        </form>
+    </div>
+    <script>
+    const PASS = 'Susybaka1!';
+    document.getElementById('adminLoginForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const pass = document.getElementById('adminPass').value;
+        if (pass === PASS) {
+            sessionStorage.setItem('adminAuthed', '1');
+            window.location.href = '/admin/dashboard.html';
+        } else {
+            document.getElementById('adminError').textContent = 'Passphrase errata!';
+        }
+    });
+    </script>
+</body>
+</html>

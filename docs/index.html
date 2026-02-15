@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Panquiz UI</title>
+  <style>
+    body {
+      background: #181818;
+      color: #eee;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      height: 100vh;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #container {
+      background: #232323;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px #0008;
+      padding: 2.5em 2em 2em 2em;
+      min-width: 320px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    #promptText {
+      font-size: 1.2em;
+      margin-bottom: 1.5em;
+      text-align: center;
+    }
+    #inputBox {
+      width: 100%;
+      padding: 0.7em;
+      font-size: 1em;
+      border-radius: 6px;
+      border: none;
+      margin-bottom: 1.2em;
+      background: #181818;
+      color: #eee;
+      outline: none;
+      box-sizing: border-box;
+      text-align: center;
+    }
+    #submitBtn {
+      width: 100%;
+      padding: 0.7em;
+      font-size: 1em;
+      border-radius: 6px;
+      border: none;
+      background: #27ae60;
+      color: #fff;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #submitBtn:hover {
+      background: #219150;
+    }
+    #output {
+      margin-top: 2em;
+      font-size: 1em;
+      color: #b2ffb2;
+      min-height: 2em;
+      text-align: center;
+      word-break: break-word;
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <div id="promptText">Caricamento...</div>
+    <input id="inputBox" type="text" autocomplete="off" />
+    <button id="submitBtn">Avanti</button>
+    <div id="output"></div>
+  </div>
+  <script src="signalr.min.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+
+{
+  "name": "panquiz-client",
+  "version": "1.0.0",
+  "description": "A Node.js client for interacting with the Panquiz SignalR service.",
+  "main": "main.js",
+  "type": "module", 
+  "scripts": {
+    "start": "node server.js",
+    "web": "node server.js",
+    "dev": "node server.js",
+    "build": "echo 'No build needed'"
+  },
+  "keywords": [
+    "panquiz",
+    "signalr",
+    "websocket",
+    "nodejs"
+  ],
+  "author": "idk",
+  "license": "MIT",
+  "dependencies": {
+    "node-fetch": "^3.3.2",
+    "readline-sync": "^1.4.10",
+    "ws": "^8.13.0",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "uuid": "^9.0.0"
+  }
+}

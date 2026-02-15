@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <style>
+        body {
+            background: linear-gradient(135deg, #b71c1c 0%, #212121 100%);
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .admin-container {
+            background: rgba(30, 30, 30, 0.98);
+            border-radius: 18px;
+            box-shadow: 0 8px 32px rgba(183,28,28,0.25);
+            padding: 40px 32px 32px 32px;
+            min-width: 350px;
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+        }
+        .admin-title {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 18px;
+            color: #ff5252;
+        }
+        .admin-section {
+            margin: 24px 0 0 0;
+            background: #1a1a1a;
+            border-radius: 12px;
+            padding: 18px 16px;
+            box-shadow: 0 2px 8px rgba(183,28,28,0.10);
+        }
+        .admin-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .admin-table th, .admin-table td {
+            border: 1px solid #ff5252;
+            padding: 8px 10px;
+            text-align: left;
+        }
+        .admin-table th {
+            background: #b71c1c;
+            color: #fff;
+        }
+        .admin-table tr:nth-child(even) {
+            background: #232323;
+        }
+        .admin-table tr:nth-child(odd) {
+            background: #181818;
+        }
+        .admin-btn {
+            background: linear-gradient(135deg, #ff5252 0%, #b71c1c 100%);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 18px;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 0 4px;
+        }
+        .admin-btn.danger {
+            background: linear-gradient(135deg, #b71c1c 0%, #ff5252 100%);
+        }
+        .admin-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .admin-status {
+            font-size: 1.1em;
+            margin-bottom: 10px;
+            color: #ffbaba;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-container">
+        <div class="admin-title">Admin Dashboard</div>
+        <div class="admin-section">
+            <div class="admin-status" id="adminStatus">Caricamento utenti connessi...</div>
+            <table class="admin-table" id="usersTable">
+                <thead>
+                    <tr><th>Nome</th><th>IP</th><th>Connessione</th><th>Azioni</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+    <script>
+    // Auth check
+    if (sessionStorage.getItem('adminAuthed') !== '1') {
+        window.location.href = '/admin';
+    }
+    async function fetchUsers() {
+        try {
+            let res = await fetch('/api/connections');
+            let data = await res.json();
+            if (!Array.isArray(data.connections)) throw new Error('Nessun dato');
+            let tbody = document.querySelector('#usersTable tbody');
+            tbody.innerHTML = '';
+            data.connections.forEach(conn => {
+                let tr = document.createElement('tr');
+                tr.innerHTML = `<td>${conn.playerName || ''}</td><td>${conn.ip || ''}</td><td>${conn.connected ? '🟢' : '🔴'}</td><td><button class='admin-btn danger' onclick='kickUser("${conn.id}")'>Kick</button></td>`;
+                tbody.appendChild(tr);
+            });
+            document.getElementById('adminStatus').textContent = 'Utenti connessi: ' + data.connections.length;
+        } catch(e) {
+            document.getElementById('adminStatus').textContent = 'Errore caricamento utenti: ' + (e.message || e);
+        }
+    }
+    async function kickUser(id) {
+        if (!confirm('Sicuro di voler disconnettere questo utente?')) return;
+        try {
+            let res = await fetch('/api/disconnect/' + encodeURIComponent(id), { method: 'POST' });
+            let data = await res.json();
+            if (data.success) {
+                fetchUsers();
+            } else {
+                alert('Errore: ' + (data.error || 'Impossibile disconnettere'));
+            }
+        } catch(e) {
+            alert('Errore: ' + (e.message || e));
+        }
+    }
+    fetchUsers();
+    setInterval(fetchUsers, 5000);
+    </script>
+</body>
+</html>
