@@ -5,16 +5,91 @@ import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import fs from 'fs';
-
-// Import our existing modules
-import { promptForMatchPin } from './validate_pin.js';
-import { negotiateSignalRConnection } from './negotiate_connection.js';
-import { establishWebSocketConnection } from './connect_signalr.js';
-
+import { spawn } from 'child_process';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+
 const app = express();
+
+// --- Randomizer Brute Force API ---
+import { getRandomizerStatus, startRandomizer, stopRandomizer, checkRandomizerAuthenticator } from './randomizer/randomizer.controller.js';
+import * as randomizerController from './randomizer/randomizer.controller.js';
+import { negotiateSignalRConnection } from './negotiate_connection.js';
+// Register Randomizer API endpoints after app is initialized
+app.get('/api/randomizer/status', getRandomizerStatus);
+app.post('/api/randomizer/start', express.json(), startRandomizer);
+app.post('/api/randomizer/stop', stopRandomizer);
+
+// Return questions/answers for the current brute force session if authenticator matches
+app.post('/api/randomizer/questions', express.json(), (req, res) => {
+    let authenticator = req.query.authenticator || req.body?.authenticator;
+    if (!authenticator && req.headers['authorization']) {
+        authenticator = req.headers['authorization'].replace(/^Bearer /i, '');
+    }
+    // Try to get authenticator from cookies if not present
+    if (!authenticator && req.headers.cookie) {
+        const match = req.headers.cookie.match(/panquiz_auth=([^;]+)/);
+        if (match) authenticator = match[1];
+    }
+    if (!randomizerController.checkRandomizerAuthenticator(authenticator)) {
+        return res.status(401).json({ questions: [], error: 'Missing or invalid authenticator' });
+    }
+    // Use found data if available
+    const bruteForceState = randomizerController.bruteForceState || {};
+    if (!bruteForceState.found || !bruteForceState.found.data || !bruteForceState.found.data.quiz || !bruteForceState.found.data.quiz.questions) {
+        return res.json({ questions: [] });
+    }
+    const getCorrectAnswer = randomizerController.getCorrectAnswer || function(q) { return ''; };
+    const questions = bruteForceState.found.data.quiz.questions.map(q => ({
+        question: q.text,
+        answers: [q.answer1, q.answer2, q.answer3, q.answer4, q.answer5, q.answer6].filter(Boolean),
+        rightAnswer: getCorrectAnswer(q)
+    }));
+    res.json({ questions });
+});
+
+// Allow a client to disconnect itself by connectionId and authenticator
+app.post('/api/self-disconnect/:connectionId', express.json(), (req, res) => {
+    const { connectionId } = req.params;
+    let authenticator = req.query.authenticator || req.body?.authenticator;
+    if (!authenticator && req.headers['authorization']) {
+        authenticator = req.headers['authorization'].replace(/^Bearer /i, '');
+    }
+    if (!authenticator && req.headers.cookie) {
+        const match = req.headers.cookie.match(/panquiz_auth=([^;]+)/);
+        if (match) authenticator = match[1];
+    }
+    const connection = activeConnections.get(connectionId);
+    if (!connection) {
+        return res.status(404).json({ error: 'Connection not found' });
+    }
+    // Only allow if authenticator matches the one stored for this connection
+    if (connection.authenticator && connection.authenticator !== authenticator) {
+        return res.status(403).json({ error: 'Forbidden: invalid authenticator' });
+    }
+    if (connection.ws && connection.connected) {
+        connection.ws.close();
+    }
+    connection.connected = false;
+    res.json({ success: true });
+});
+
+// Helper to extract correct answer(s) from question object
+function getCorrectAnswer(q) {
+    // If correct is a string of 0/1s, return the answer(s) marked as correct
+    if (typeof q.correct === 'string' && q.correct.match(/^[01]+$/)) {
+        const answers = [q.answer1, q.answer2, q.answer3, q.answer4, q.answer5, q.answer6];
+        return answers.filter((a, i) => q.correct[i] === '1' && a).join(', ');
+    }
+    // If correct is a number or string index, return that answer
+    if (typeof q.correct === 'string' && q.correct.match(/^\d+$/)) {
+        const idx = parseInt(q.correct, 10) - 1;
+        const answers = [q.answer1, q.answer2, q.answer3, q.answer4, q.answer5, q.answer6];
+        return answers[idx] || '';
+    }
+    return '';
+}
 // Force port detection for different hosting services
 const PORT = process.env.PORT || process.env.SERVER_PORT || 80;
 

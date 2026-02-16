@@ -121,6 +121,9 @@
 <body>
     <div class="admin-container">
         <div class="admin-title">Admin Dashboard</div>
+                <div id="updateNotice" style="display:none; margin:10px 0 0 0;">
+                    <button id="updateBtn" class="admin-btn danger" style="background:linear-gradient(135deg,#38d39f 0%,#38ef7d 100%);color:#fff;font-weight:bold;">New update available! Click to update</button>
+                </div>
         <div class="admin-section">
             <div class="admin-status" id="adminStatus">Caricamento utenti connessi...</div>
             <div style="margin:10px 0;">
@@ -156,6 +159,29 @@
         </div>
     </div>
     <script>
+        // --- Update checker UI logic ---
+        async function checkUpdateStatus() {
+            try {
+                const res = await fetch('/api/updater/status');
+                const data = await res.json();
+                if (data && data.updateAvailable) {
+                    document.getElementById('updateNotice').style.display = '';
+                } else {
+                    document.getElementById('updateNotice').style.display = 'none';
+                }
+            } catch {}
+        }
+        setInterval(checkUpdateStatus, 10000); // check every 10s
+        checkUpdateStatus();
+        document.getElementById('updateBtn').onclick = async function() {
+            if (!confirm('A new version is available. Update now? The server will restart.')) return;
+            const res = await fetch('/api/updater/update', { method: 'POST' });
+            if (res.ok) {
+                alert('Update started! The server will restart if successful.');
+            } else {
+                alert('Update failed.');
+            }
+        };
     let csrfToken = sessionStorage.getItem('adminCsrf') || '';
 
     async function ensureAuth() {

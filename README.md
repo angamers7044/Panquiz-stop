@@ -32,4 +32,4 @@ Segui le istruzioni nel terminale:
   -Inserisci il PIN della partita.
   -Inserisci il tuo nome giocatore.
 
-E si lo so tutto quanto è vibe-coded ma cavolo non so programmare ancora da solo dammi del tempo eh e se lai e corretta dovrebbe auto update
+E si lo so tutto quanto è vibe-coded ma cavolo non so programmare ancora da solo dammi del tempo eh

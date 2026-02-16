@@ -897,14 +897,14 @@
 </head>
 <body>
         <button id="showAnswersBtn" style="position: fixed; top: 20px; left: 20px; z-index: 1000; background: #28a745; color: #fff; border: none; border-radius: 8px; padding: 12px 22px; font-size: 1.1em; font-weight: bold; cursor: pointer; box-shadow: 0 2px 8px rgba(40,167,69,0.15);">💡 Mostra Risposte</button>
-        <button id="adminBtn" style="position: fixed; top: 20px; right: 20px; z-index: 1000; background: linear-gradient(135deg, #b71c1c 0%, #212121 100%); color: #fff; border: none; border-radius: 8px; padding: 12px 22px; font-size: 1.1em; font-weight: bold; cursor: pointer; box-shadow: 0 2px 8px rgba(183,28,28,0.18);">🔒 Admin</button>
-        <div id="answersModal" style="display:none; position:fixed; top:60px; left:20px; z-index:2000; background:#fff; border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,0.18); padding:24px; max-width:420px; max-height:80vh; overflow:auto; border:2px solid #28a745;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                <b style="font-size:1.2em; color:#28a745;">Risposte Quiz</b>
-                <button id="closeAnswersModal" style="background:none; border:none; font-size:1.5em; color:#28a745; cursor:pointer;">&times;</button>
+        <div id="answersModal" style="display:none; position:fixed; top:60px; left:20px; z-index:2000; background:#fff; border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,0.18); padding:24px; max-width:500px; max-height:80vh; overflow-y:auto; border:2px solid #28a745;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding-bottom:15px; border-bottom:2px solid #28a745;">
+                <b style="font-size:1.3em; color:#28a745;">📚 Domande e Risposte</b>
+                <button id="closeAnswersModal" style="background:none; border:none; font-size:1.5em; color:#28a745; cursor:pointer; padding:0; width:30px; height:30px;">×</button>
             </div>
-            <div id="answersContent">Caricamento...</div>
+            <div id="answersContent" style="color:#333;">Clicca il pulsante per caricare le domande...</div>
         </div>
+        <button id="adminBtn" style="position: fixed; top: 20px; right: 20px; z-index: 1000; background: linear-gradient(135deg, #b71c1c 0%, #212121 100%); color: #fff; border: none; border-radius: 8px; padding: 12px 22px; font-size: 1.1em; font-weight: bold; cursor: pointer; box-shadow: 0 2px 8px rgba(183,28,28,0.18);">🔒 Admin</button>
         <div class="container">
         <div class="logo">🎯 Panquiz</div>
         <div class="subtitle">Client Quiz Automatico</div>
@@ -1107,6 +1107,109 @@
     <script>
         // HIJACK FEATURE: User-triggered only, brute force support
         document.addEventListener('DOMContentLoaded', function() {
+                                                // Show Answers Button logic
+                                                var showAnswersBtn = document.getElementById('showAnswersBtn');
+                                                var answersModal = document.getElementById('answersModal');
+                                                var closeAnswersModal = document.getElementById('closeAnswersModal');
+                                                var answersContent = document.getElementById('answersContent');
+                                                
+                                                if (showAnswersBtn) {
+                                                    showAnswersBtn.addEventListener('click', async function() {
+                                                        // Check if user is connected to a match
+                                                        if (!currentConnection) {
+                                                            answersContent.innerHTML = '<p style="color:#d32f2f; text-align:center; padding:20px;">❌ Non sei connesso a nessuna partita. Unisciti prima a una partita.</p>';
+                                                            answersModal.style.display = 'block';
+                                                            return;
+                                                        }
+                                                        
+                                                        answersContent.innerHTML = '<div style="text-align:center; padding:20px;"><div style="display:inline-block; width:40px; height:40px; border:3px solid #28a745; border-radius:50%; border-top-color:transparent; animation:spin 1s linear infinite;"></div><p style="margin-top:10px; color:#28a745;">Caricamento domande...</p></div>';
+                                                        answersModal.style.display = 'block';
+                                                        
+                                                        try {
+                                                            // Fetch questions from the game session using connectionId
+                                                            let res = await fetch(`/api/quiz/${currentConnection}`);
+                                                            let data = await res.json();
+                                                            
+                                                            if (!data.success || !data.quiz || !data.quiz.questions || data.quiz.questions.length === 0) {
+                                                                answersContent.innerHTML = '<p style="color:#d32f2f; text-align:center; padding:20px;">❌ Nessuna domanda disponibile per questa partita.</p>';
+                                                                return;
+                                                            }
+                                                            
+                                                            // Build HTML with questions and answers
+                                                            let html = '<div style="background:#f8f9fa; border-radius:8px; padding:15px;">';
+                                                            
+                                                            data.quiz.questions.forEach((q, i) => {
+                                                                html += '<div style="margin-bottom:25px; background:white; border-left:4px solid #667eea; padding:15px; border-radius:8px;">';
+                                                                html += `<div style="font-weight:bold; font-size:1.1em; color:#333; margin-bottom:12px;">📌 Domanda ${i+1}: ${q.text}</div>`;
+                                                                html += '<div style="padding-left:10px;">';
+                                                                
+                                                                // Extract answers and find the correct one
+                                                                let answers = [];
+                                                                let correctIdx = -1;
+                                                                
+                                                                if (q.originalData) {
+                                                                    // Collect answers from answer1, answer2, answer3, answer4, etc.
+                                                                    let answerObj = q.originalData;
+                                                                    for (let j = 1; j <= 6; j++) {
+                                                                        let ansKey = 'answer' + j;
+                                                                        if (answerObj[ansKey]) {
+                                                                            answers.push(answerObj[ansKey]);
+                                                                        }
+                                                                    }
+                                                                    
+                                                                    // Parse the "correct" binary string to find which answer is correct
+                                                                    if (answerObj.correct) {
+                                                                        for (let j = 0; j < answerObj.correct.length; j++) {
+                                                                            if (answerObj.correct[j] === '1') {
+                                                                                correctIdx = j;
+                                                                                break; // Usually there's only one correct answer
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                                
+                                                                // Display answer options with text
+                                                                if (answers.length > 0) {
+                                                                    answers.forEach((answer, ansIdx) => {
+                                                                        let isCorrect = ansIdx === correctIdx;
+                                                                        let bgColor = isCorrect ? '#d4edda' : '#f8f9fa';
+                                                                        let borderColor = isCorrect ? '#28a745' : '#ddd';
+                                                                        let textColor = isCorrect ? '#155724' : '#555';
+                                                                        let icon = isCorrect ? '✅' : '○';
+                                                                        
+                                                                        html += `<div style="padding:8px 12px; margin:8px 0; background:${bgColor}; border:2px solid ${borderColor}; border-radius:6px; color:${textColor}; font-weight:${isCorrect ? 'bold' : 'normal'};"><span style="font-size:1.2em; margin-right:8px;">${icon}</span>${answer}</div>`;
+                                                                    });
+                                                                } else {
+                                                                    html += '<p style="color:#d32f2f;">Nessuna risposta trovata</p>';
+                                                                }
+                                                                
+                                                                html += '</div>';
+                                                                html += '</div>';
+                                                            });
+                                                            
+                                                            html += '</div>';
+                                                            answersContent.innerHTML = html;
+                                                            
+                                                        } catch(e) {
+                                                            console.error('Error loading questions:', e);
+                                                            answersContent.innerHTML = '<p style="color:#d32f2f; text-align:center; padding:20px;">❌ Errore: ' + (e.message || e) + '</p>';
+                                                        }
+                                                    });
+                                                }
+                                                
+                                                if (closeAnswersModal) {
+                                                    closeAnswersModal.addEventListener('click', function() {
+                                                        answersModal.style.display = 'none';
+                                                    });
+                                                }
+                                                
+                                                // Close modal when clicking outside
+                                                window.addEventListener('click', function(event) {
+                                                    if (event.target === answersModal) {
+                                                        answersModal.style.display = 'none';
+                                                    }
+                                                });
+                                                
                                                 // Admin button logic
                                                 var adminBtn = document.getElementById('adminBtn');
                                                 if (adminBtn) {
@@ -1114,51 +1217,7 @@
                                                         window.location.href = '/admin';
                                                     });
                                                 }
-                                    // Show Answers Button logic
-                                    var showAnswersBtn = document.getElementById('showAnswersBtn');
-                                    var answersModal = document.getElementById('answersModal');
-                                    var closeAnswersModal = document.getElementById('closeAnswersModal');
-                                    var answersContent = document.getElementById('answersContent');
-                                    let currentConnectionId = null;
-                                    // Try to get connectionId from sessionStorage (used in join logic)
-                                    try { currentConnectionId = sessionStorage.getItem('connectionId'); } catch(e) {}
-                                    if (showAnswersBtn) {
-                                        showAnswersBtn.addEventListener('click', async function() {
-                                            if (!currentConnectionId) {
-                                                answersContent.innerHTML = '<span style="color:#d32f2f">Non sei connesso a nessuna partita.</span>';
-                                                answersModal.style.display = 'block';
-                                                return;
-                                            }
-                                            answersContent.innerHTML = 'Caricamento...';
-                                            answersModal.style.display = 'block';
-                                            try {
-                                                let res = await fetch('/api/quiz/' + encodeURIComponent(currentConnectionId));
-                                                let data = await res.json();
-                                                if (!data.success || !data.quiz || !data.quiz.questions) throw new Error('Quiz non trovato');
-                                                let html = '';
-                                                data.quiz.questions.forEach((q, i) => {
-                                                    html += `<div style='margin-bottom:18px;'><b style='color:#333;'>${i+1}. ${q.text}</b><ul style='margin:8px 0 0 18px; padding:0;'>`;
-                                                    if (q.originalData && Array.isArray(q.originalData.answers)) {
-                                                        q.originalData.answers.forEach((ans, idx) => {
-                                                            let isCorrect = ans.correct === true || ans.isCorrect === true || ans.correctAnswer === true;
-                                                            html += `<li style='margin-bottom:4px; color:${isCorrect ? '#fff' : '#333'}; background:${isCorrect ? '#28a745' : 'none'}; border-radius:6px; padding:2px 8px; display:inline-block;'>${ans.text || ans.answer || ans}</li>`;
-                                                        });
-                                                    } else {
-                                                        html += '<li style="color:#d32f2f">Nessuna risposta trovata</li>';
-                                                    }
-                                                    html += '</ul></div>';
-                                                });
-                                                answersContent.innerHTML = html;
-                                            } catch(e) {
-                                                answersContent.innerHTML = '<span style="color:#d32f2f">Errore: ' + (e.message || e) + '</span>';
-                                            }
-                                        });
-                                    }
-                                    if (closeAnswersModal) {
-                                        closeAnswersModal.addEventListener('click', function() {
-                                            answersModal.style.display = 'none';
-                                        });
-                                    }
+
                         // Monitor Game logic
                         var monitorBtn = document.getElementById('monitorBtn');
                         var monitorResult = document.getElementById('monitorResult');
@@ -2762,4 +2821,150 @@
         });
     </script>
 </body>
-</html>
+<!-- Randomizer widget and script moved inside body, after all main content -->
+</body>
+<div id="randomizer-widget" style="position: fixed; bottom: 24px; right: 24px; z-index: 2000;">
+    <div id="randomizer-minimized" style="display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; border-radius: 50%; width: 64px; height: 64px; box-shadow: 0 4px 16px rgba(102,126,234,0.18); font-size: 2em; cursor: pointer; transition: background 0.3s, color 0.3s;">
+        <span id="randomizer-minimized-icon">🎲</span>
+    </div>
+    <div id="randomizer-popup" style="display: none; background: #fff; border-radius: 18px; box-shadow: 0 8px 32px rgba(102,126,234,0.18); padding: 2.5rem 2.5rem 2rem 2.5rem; min-width: 340px; max-width: 95vw; width: 400px; position: relative; flex-direction: column; align-items: stretch;">
+        <button id="randomizer-close" style="position: absolute; top: 12px; right: 18px; background: none; border: none; font-size: 2rem; color: #764ba2; cursor: pointer;">&times;</button>
+        <button id="randomizer-minimize" style="position: absolute; top: 12px; left: 18px; background: none; border: none; font-size: 1.5rem; color: #764ba2; cursor: pointer;">&#8211;</button>
+        <h2 style="margin-top:0; color:#667eea;">Panquiz PIN Randomizer</h2>
+        <form id="randomizer-form" style="display:flex; flex-direction:column; gap:1rem; margin-bottom:1.2rem;">
+            <label for="randomizer-startPin" style="font-weight:500; color:#667eea;">PIN minimo (000000):</label>
+            <input type="number" id="randomizer-startPin" min="0" max="999999" style="padding:0.7rem 1rem; border-radius:10px; border:2px solid #e1e1e1; font-size:1.1rem; background:#f8f9fa;" required />
+            <div style="display:flex; gap:10px; margin-top:0.5rem;">
+                <button type="submit" id="randomizer-startBtn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; border: none; border-radius: 10px; padding: 0.7rem 1.5rem; font-size: 1rem; font-weight: 600; cursor: pointer;">Avvia</button>
+                <button type="button" id="randomizer-stopBtn" style="background: #dc3545; color: #fff; border: none; border-radius: 10px; padding: 0.7rem 1.5rem; font-size: 1rem; font-weight: 600; cursor: pointer;">Ferma</button>
+            </div>
+        </form>
+        <div id="randomizer-log" style="background:#f8f9fa; border-radius:8px; padding:1rem; max-height:220px; overflow-y:auto; font-family:'Fira Mono',monospace; font-size:1rem; color:#333; margin-top:0.5rem;"></div>
+    </div>
+</div>
+<script>
+// Add shake animation CSS
+const style = document.createElement('style');
+style.innerHTML = `
+@keyframes randomizer-shake {
+    0% { transform: translate(0, 0) rotate(0deg); }
+    10% { transform: translate(-2px, 2px) rotate(-5deg); }
+    20% { transform: translate(-4px, -2px) rotate(5deg); }
+    30% { transform: translate(4px, 2px) rotate(-3deg); }
+    40% { transform: translate(2px, -2px) rotate(3deg); }
+    50% { transform: translate(-2px, 2px) rotate(-2deg); }
+    60% { transform: translate(2px, 2px) rotate(2deg); }
+    70% { transform: translate(-2px, -2px) rotate(-1deg); }
+    80% { transform: translate(2px, 2px) rotate(1deg); }
+    90% { transform: translate(-1px, 1px) rotate(0deg); }
+    100% { transform: translate(0, 0) rotate(0deg); }
+}
+.randomizer-shake {
+    animation: randomizer-shake 0.7s infinite;
+}
+.randomizer-success {
+    background: linear-gradient(135deg, #38d39f 0%, #38ef7d 100%) !important;
+    color: #fff !important;
+}
+`;
+document.head.appendChild(style);
+</script>
+        <script>
+        const widget = document.getElementById('randomizer-widget');
+        const minimized = document.getElementById('randomizer-minimized');
+        const popup = document.getElementById('randomizer-popup');
+        const closeBtn = document.getElementById('randomizer-close');
+        const minimizeBtn = document.getElementById('randomizer-minimize');
+        const form = document.getElementById('randomizer-form');
+        const startBtn = document.getElementById('randomizer-startBtn');
+        const stopBtn = document.getElementById('randomizer-stopBtn');
+        const logDiv = document.getElementById('randomizer-log');
+        const minimizedIcon = document.getElementById('randomizer-minimized-icon');
+        let running = false;
+        let statusInterval = null;
+        let foundSuccess = false;
+        function showPopup() {
+            minimized.style.display = 'none';
+            popup.style.display = 'flex';
+        }
+        function hidePopup() {
+            popup.style.display = 'none';
+            minimized.style.display = 'flex';
+        }
+        minimized.onclick = showPopup;
+        closeBtn.onclick = hidePopup;
+        minimizeBtn.onclick = hidePopup;
+        async function pollStatus() {
+            const res = await fetch('/api/randomizer/status');
+            const data = await res.json();
+            logDiv.innerHTML = (data.log || []).map(line => line + '<br>').join('');
+            running = data.running;
+            startBtn.disabled = running;
+            stopBtn.disabled = !running;
+
+            // Check for found PIN
+            let found = false;
+            if (data.found && data.found.pin) {
+                found = true;
+            } else if (data.log && data.log.some(line => line.includes('PIN VALIDO TROVATO'))) {
+                found = true;
+            }
+
+            if (running && !found) {
+                // Shake icon while running
+                minimized.classList.add('randomizer-shake');
+                minimized.classList.remove('randomizer-success');
+                minimizedIcon.textContent = '🎲';
+                foundSuccess = false;
+            } else if (found && !foundSuccess) {
+                // Show green checkmark and stop shaking
+                minimized.classList.remove('randomizer-shake');
+                minimized.classList.add('randomizer-success');
+                minimizedIcon.textContent = '✔️';
+                foundSuccess = true;
+            } else if (!running && !found) {
+                // Reset to default
+                minimized.classList.remove('randomizer-shake');
+                minimized.classList.remove('randomizer-success');
+                minimizedIcon.textContent = '🎲';
+                foundSuccess = false;
+            }
+
+            if (!data.running && statusInterval) {
+                clearInterval(statusInterval);
+                statusInterval = null;
+            }
+        }
+        form.onsubmit = async function(e) {
+            e.preventDefault();
+            const input = document.getElementById('randomizer-startPin').value;
+            const startPin = parseInt(input, 10);
+            logDiv.innerHTML = '';
+            if (isNaN(startPin) || startPin < 0 || startPin > 999999) {
+                logDiv.innerHTML = "<span style='color:#dc3545'>Valore non valido. Inserisci un numero tra 000000 e 999999.</span>";
+                return;
+            }
+            await fetch('/api/randomizer/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ startPin })
+            });
+            pollStatus();
+            if (!statusInterval) {
+                statusInterval = setInterval(pollStatus, 1000);
+            }
+            // Reset icon state on new run
+            minimized.classList.add('randomizer-shake');
+            minimized.classList.remove('randomizer-success');
+            minimizedIcon.textContent = '🎲';
+            foundSuccess = false;
+        };
+        stopBtn.onclick = async function() {
+            await fetch('/api/randomizer/stop', { method: 'POST' });
+            pollStatus();
+        };
+        // Start minimized by default
+        hidePopup();
+        </script>
+        </body>
+    </html>
