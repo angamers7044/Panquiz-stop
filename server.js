@@ -1045,6 +1045,26 @@ app.post('/api/join', async (req, res) => {
     }
 });
 
+// Return a PlayID for a given PIN without joining any connection
+app.post('/api/playid-from-pin', async (req, res) => {
+    try {
+        const { pinCode } = req.body || {};
+        if (!pinCode) {
+            return res.status(400).json({ error: 'Codice PIN richiesto' });
+        }
+
+        const playId = await validateMatchPin(pinCode);
+        if (!playId) {
+            return res.status(400).json({ error: 'Pin non valido o playId non disponibile' });
+        }
+
+        return res.json({ success: true, playId });
+    } catch (error) {
+        console.error('playid-from-pin error:', error);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 // Bulk join endpoint - Add multiple bots at once
 app.post('/api/bulk-join', async (req, res) => {
     try {

@@ -928,6 +928,17 @@
         
         <div class="status" id="status"></div>
         
+        <div class="info-section" style="margin-top:20px;background: rgba(255,255,255,0.08); border-radius:12px; padding:16px;">
+            <h3 style="margin-top:0;margin-bottom:12px;">🎯 PlayID Finder</h3>
+            <div class="input-group">
+                <label for="playidFinderPin">PIN</label>
+                <input type="number" id="playidFinderPin" placeholder="Es. 123456" min="0" max="999999" step="1">
+            </div>
+            <button class="btn" id="fetchPlayIdBtn" style="background:#17a2b8; margin-top:6px;">Ottieni PlayID</button>
+            <div class="status info" id="playidFinderStatus" style="display:none; margin-top:10px;"></div>
+            <div id="playidFinderResult" style="margin-top:6px; font-weight:600;"></div>
+        </div>
+        
         <div class="game-info" id="gameInfo">
             <!-- Stats Section -->
             <div class="info-section">
@@ -2011,6 +2022,55 @@
 
         function hideStatus() {
             elements.status.style.display = 'none';
+        }
+
+        function showPlayidFinderStatus(message, type = 'info') {
+            const el = document.getElementById('playidFinderStatus');
+            if (!el) return;
+            el.textContent = message;
+            el.className = `status ${type}`;
+            el.style.display = 'block';
+        }
+
+        function setPlayidFinderResult(text) {
+            const el = document.getElementById('playidFinderResult');
+            if (!el) return;
+            el.textContent = text;
+        }
+
+        async function fetchPlayIdFromPin() {
+            const pinEl = document.getElementById('playidFinderPin');
+            if (!pinEl) return;
+            const pinCode = pinEl.value.trim();
+            if (!pinCode) {
+                showPlayidFinderStatus('Inserisci un PIN prima di procedere', 'error');
+                setPlayidFinderResult('');
+                return;
+            }
+            showPlayidFinderStatus('Cerco il PlayID...', 'info');
+            setPlayidFinderResult('');
+
+            try {
+                const res = await fetch(`${API_BASE}/playid-from-pin`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pinCode })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || !data.success || !data.playId) {
+                    showPlayidFinderStatus(data.error || 'Impossibile ottenere il PlayID', 'error');
+                    return;
+                }
+                showPlayidFinderStatus('PlayID ottenuto', 'success');
+                setPlayidFinderResult(`PlayID: ${data.playId}`);
+            } catch (error) {
+                showPlayidFinderStatus('Errore di rete, riprova', 'error');
+            }
+        }
+
+        const playidFinderBtn = document.getElementById('fetchPlayIdBtn');
+        if (playidFinderBtn) {
+            playidFinderBtn.addEventListener('click', fetchPlayIdFromPin);
         }
 
         function setLoading(loading) {
