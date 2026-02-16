@@ -95,45 +95,190 @@
                 <tbody></tbody>
             </table>
         </div>
+        <div class="admin-section">
+            <div class="admin-status" id="banStatus">Caricamento ban...</div>
+            <table class="admin-table" id="bansTable">
+                <thead>
+                    <tr><th>IP</th><th>Motivo</th><th>Data</th><th>Azioni</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
     </div>
     <script>
-    // Auth check
-    if (sessionStorage.getItem('adminAuthed') !== '1') {
-        window.location.href = '/admin';
+    let csrfToken = sessionStorage.getItem('adminCsrf') || '';
+
+    async function ensureAuth() {
+        if (csrfToken) return true;
+        const res = await fetch('/api/admin/csrf', { credentials: 'same-origin' });
+        if (res.status === 401) {
+            window.location.href = '/admin';
+            return false;
+        }
+        const data = await res.json().catch(() => ({}));
+        if (!data.csrfToken) {
+            window.location.href = '/admin';
+            return false;
+        }
+        csrfToken = data.csrfToken;
+        sessionStorage.setItem('adminCsrf', csrfToken);
+        return true;
     }
+
+    function csrfHeaders() {
+        return { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken };
+    }
+
+    function el(tag, props) {
+        const node = document.createElement(tag);
+        if (props) Object.assign(node, props);
+        return node;
+    }
+
     async function fetchUsers() {
+        if (!(await ensureAuth())) return;
         try {
-            let res = await fetch('/api/connections');
-            let data = await res.json();
+            const res = await fetch('/api/admin/connections', { credentials: 'same-origin' });
+            if (res.status === 401) {
+                window.location.href = '/admin';
+                return;
+            }
+            const data = await res.json();
             if (!Array.isArray(data.connections)) throw new Error('Nessun dato');
-            let tbody = document.querySelector('#usersTable tbody');
+
+            const tbody = document.querySelector('#usersTable tbody');
             tbody.innerHTML = '';
+
             data.connections.forEach(conn => {
-                let tr = document.createElement('tr');
-                tr.innerHTML = `<td>${conn.playerName || ''}</td><td>${conn.ip || ''}</td><td>${conn.connected ? '🟢' : '🔴'}</td><td><button class='admin-btn danger' onclick='kickUser("${conn.id}")'>Kick</button></td>`;
+                const tr = el('tr');
+                const tdName = el('td'); tdName.textContent = conn.playerName || '';
+                const tdIp = el('td'); tdIp.textContent = conn.ip || '';
+                const tdConn = el('td'); tdConn.textContent = conn.connected ? '🟢' : '🔴';
+                const tdActions = el('td');
+
+                const kickBtn = el('button', { className: 'admin-btn danger', textContent: 'Kick' });
+                kickBtn.addEventListener('click', () => kickUser(conn.id));
+                tdActions.appendChild(kickBtn);
+
+                if (conn.ip) {
+                    const banBtn = el('button', {
+                        className: conn.banned ? 'admin-btn' : 'admin-btn danger',
+                        textContent: conn.banned ? 'Unban' : 'Ban'
+                    });
+                    banBtn.addEventListener('click', () => (conn.banned ? unbanIp(conn.ip) : banIp(conn.ip)));
+                    tdActions.appendChild(banBtn);
+                }
+
+                tr.appendChild(tdName);
+                tr.appendChild(tdIp);
+                tr.appendChild(tdConn);
+                tr.appendChild(tdActions);
                 tbody.appendChild(tr);
             });
+
             document.getElementById('adminStatus').textContent = 'Utenti connessi: ' + data.connections.length;
-        } catch(e) {
+        } catch (e) {
             document.getElementById('adminStatus').textContent = 'Errore caricamento utenti: ' + (e.message || e);
         }
     }
+
     async function kickUser(id) {
+        if (!(await ensureAuth())) return;
+        if (!id) return;
         if (!confirm('Sicuro di voler disconnettere questo utente?')) return;
         try {
-            let res = await fetch('/api/disconnect/' + encodeURIComponent(id), { method: 'POST' });
-            let data = await res.json();
-            if (data.success) {
-                fetchUsers();
-            } else {
-                alert('Errore: ' + (data.error || 'Impossibile disconnettere'));
-            }
-        } catch(e) {
+            const res = await fetch('/api/admin/disconnect/' + encodeURIComponent(id), {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: csrfHeaders()
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.success) throw new Error(data.error || 'Impossibile disconnettere');
+            fetchUsers();
+        } catch (e) {
             alert('Errore: ' + (e.message || e));
         }
     }
+
+    async function fetchBans() {
+        if (!(await ensureAuth())) return;
+        try {
+            const res = await fetch('/api/admin/bans', { credentials: 'same-origin' });
+            if (res.status === 401) {
+                window.location.href = '/admin';
+                return;
+            }
+            const data = await res.json().catch(() => ({}));
+            const bans = Array.isArray(data.bans) ? data.bans : [];
+
+            const tbody = document.querySelector('#bansTable tbody');
+            tbody.innerHTML = '';
+            bans.forEach(b => {
+                const tr = el('tr');
+                const tdIp = el('td'); tdIp.textContent = b.ip || '';
+                const tdReason = el('td'); tdReason.textContent = b.reason || '';
+                const tdDate = el('td'); tdDate.textContent = b.addedAt ? new Date(b.addedAt).toLocaleString() : '';
+                const tdActions = el('td');
+                const unbanBtn = el('button', { className: 'admin-btn', textContent: 'Unban' });
+                unbanBtn.addEventListener('click', () => unbanIp(b.ip));
+                tdActions.appendChild(unbanBtn);
+
+                tr.appendChild(tdIp);
+                tr.appendChild(tdReason);
+                tr.appendChild(tdDate);
+                tr.appendChild(tdActions);
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById('banStatus').textContent = 'IP bannati: ' + bans.length;
+        } catch (e) {
+            document.getElementById('banStatus').textContent = 'Errore caricamento ban: ' + (e.message || e);
+        }
+    }
+
+    async function banIp(ip) {
+        if (!(await ensureAuth())) return;
+        if (!ip) return;
+        const reason = prompt('Motivo ban (opzionale):', '') || '';
+        try {
+            const res = await fetch('/api/admin/ban', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: csrfHeaders(),
+                body: JSON.stringify({ ip, reason })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.success) throw new Error(data.error || 'Ban fallito');
+            fetchUsers();
+            fetchBans();
+        } catch (e) {
+            alert('Errore: ' + (e.message || e));
+        }
+    }
+
+    async function unbanIp(ip) {
+        if (!(await ensureAuth())) return;
+        if (!ip) return;
+        try {
+            const res = await fetch('/api/admin/unban', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: csrfHeaders(),
+                body: JSON.stringify({ ip })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.success) throw new Error(data.error || 'Unban fallito');
+            fetchUsers();
+            fetchBans();
+        } catch (e) {
+            alert('Errore: ' + (e.message || e));
+        }
+    }
+
     fetchUsers();
+    fetchBans();
     setInterval(fetchUsers, 5000);
+    setInterval(fetchBans, 8000);
     </script>
 </body>
 </html>

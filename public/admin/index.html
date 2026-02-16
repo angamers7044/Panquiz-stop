@@ -80,16 +80,31 @@
         </form>
     </div>
     <script>
-    const PASS = 'Susybaka1!';
     document.getElementById('adminLoginForm').addEventListener('submit', function(e) {
         e.preventDefault();
         const pass = document.getElementById('adminPass').value;
-        if (pass === PASS) {
-            sessionStorage.setItem('adminAuthed', '1');
+        const errEl = document.getElementById('adminError');
+        const btn = e.target.querySelector('button[type="submit"]');
+        errEl.textContent = '';
+        btn.disabled = true;
+
+        fetch('/api/admin/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ passphrase: pass })
+        }).then(async (res) => {
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || 'Login fallito');
+            }
+            sessionStorage.setItem('adminCsrf', data.csrfToken);
             window.location.href = '/admin/dashboard.html';
-        } else {
-            document.getElementById('adminError').textContent = 'Passphrase errata!';
-        }
+        }).catch((err) => {
+            errEl.textContent = err.message || String(err);
+        }).finally(() => {
+            btn.disabled = false;
+        });
     });
     </script>
 </body>

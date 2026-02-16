@@ -3,6 +3,7 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
 
 // Import our existing modules
 import { promptForMatchPin } from './validate_pin.js';
@@ -38,9 +39,314 @@ let currentGameInfo = {
     lastUpdated: null
 };
 
+// --- Admin auth + IP bans (server-side) ---
+const ADMIN_COOKIE_NAME = 'panquiz_admin_session';
+const ADMIN_SESSION_TTL_MS = Number(process.env.ADMIN_SESSION_TTL_MS || 8 * 60 * 60 * 1000); // 8h default
+
+// Store a hash (not the plaintext) so `public/admin/index.html` never contains the secret.
+// Format: pbkdf2$sha256$<iterations>$<saltB64Url>$<hashB64Url>
+const HARDCODED_ADMIN_PASSPHRASE_HASH = 'pbkdf2$sha256$210000$pRubkoEfsC8VxYHzNo5M7w$8A1Bf5fOSeMwoh3LvSEpevV6SnxVHURX8VRONenrEFQ';
+const ADMIN_PASSPHRASE_HASH = process.env.ADMIN_PASSPHRASE_HASH || HARDCODED_ADMIN_PASSPHRASE_HASH;
+const ADMIN_PASSPHRASE = process.env.ADMIN_PASSPHRASE; // optional (legacy override)
+
+const adminSessions = new Map(); // sessionId -> { csrfToken, expiresAt }
+const bannedIps = new Map(); // ip -> { reason, addedAt }
+const adminLoginAttempts = new Map(); // ip -> { firstAt, failures, lockedUntil }
+
+const ADMIN_LOGIN_WINDOW_MS = Number(process.env.ADMIN_LOGIN_WINDOW_MS || 10 * 60 * 1000); // 10m
+const ADMIN_LOGIN_MAX_FAILURES = Number(process.env.ADMIN_LOGIN_MAX_FAILURES || 8);
+const ADMIN_LOGIN_LOCK_MS = Number(process.env.ADMIN_LOGIN_LOCK_MS || 15 * 60 * 1000); // 15m
+
+function sha256Base64Url(input) {
+    return crypto.createHash('sha256').update(String(input ?? ''), 'utf8').digest('base64url');
+}
+
+function secureEquals(a, b) {
+    // Compare fixed-length hashes to avoid leaking length/timing details.
+    const ah = sha256Base64Url(a);
+    const bh = sha256Base64Url(b);
+    return crypto.timingSafeEqual(Buffer.from(ah), Buffer.from(bh));
+}
+
+function b64UrlToBuffer(s) {
+    if (!s) return Buffer.alloc(0);
+    const b64 = String(s).replace(/-/g, '+').replace(/_/g, '/');
+    const pad = b64.length % 4 === 0 ? '' : '='.repeat(4 - (b64.length % 4));
+    return Buffer.from(b64 + pad, 'base64');
+}
+
+function parsePbkdf2Hash(stored) {
+    const parts = String(stored || '').split('$');
+    if (parts.length !== 5) return null;
+    const [scheme, alg, iterStr, saltB64u, hashB64u] = parts;
+    if (scheme !== 'pbkdf2' || alg !== 'sha256') return null;
+    const iterations = Number(iterStr);
+    if (!Number.isFinite(iterations) || iterations < 10000) return null;
+    const salt = b64UrlToBuffer(saltB64u);
+    const hash = b64UrlToBuffer(hashB64u);
+    if (!salt.length || !hash.length) return null;
+    return { iterations, salt, hash };
+}
+
+function verifyAdminPassphrase(passphrase) {
+    if (ADMIN_PASSPHRASE_HASH) {
+        const parsed = parsePbkdf2Hash(ADMIN_PASSPHRASE_HASH);
+        if (parsed) {
+            const derived = crypto.pbkdf2Sync(String(passphrase ?? ''), parsed.salt, parsed.iterations, parsed.hash.length, 'sha256');
+            return crypto.timingSafeEqual(derived, parsed.hash);
+        }
+    }
+    // Legacy override: plaintext in env (still compared timing-safe)
+    if (ADMIN_PASSPHRASE) return secureEquals(passphrase, ADMIN_PASSPHRASE);
+    return false;
+}
+
+function parseCookies(cookieHeader) {
+    const cookies = {};
+    if (!cookieHeader) return cookies;
+    const parts = cookieHeader.split(';');
+    for (const part of parts) {
+        const idx = part.indexOf('=');
+        if (idx === -1) continue;
+        const key = part.slice(0, idx).trim();
+        const val = part.slice(idx + 1).trim();
+        if (!key) continue;
+        cookies[key] = decodeURIComponent(val);
+    }
+    return cookies;
+}
+
+function normalizeIp(ip) {
+    if (!ip) return '';
+    let s = String(ip).trim();
+    // x-forwarded-for may include multiple IPs; caller should pass the chosen one.
+    if (s.startsWith('::ffff:')) s = s.slice(7);
+    if (s.startsWith('[') && s.includes(']')) s = s.slice(1, s.indexOf(']'));
+    const ipv4PortMatch = s.match(/^(\d{1,3}(?:\.\d{1,3}){3})(?::\d+)?$/);
+    if (ipv4PortMatch) s = ipv4PortMatch[1];
+    return s;
+}
+
+function getClientIp(req) {
+    const xff = req.headers['x-forwarded-for'];
+    if (typeof xff === 'string' && xff.trim()) {
+        const first = xff.split(',')[0]?.trim();
+        const normalized = normalizeIp(first);
+        if (normalized) return normalized;
+    }
+    const xRealIp = req.headers['x-real-ip'];
+    if (typeof xRealIp === 'string' && xRealIp.trim()) {
+        const normalized = normalizeIp(xRealIp.trim());
+        if (normalized) return normalized;
+    }
+    return normalizeIp(req.socket?.remoteAddress || req.connection?.remoteAddress || '');
+}
+
+function getAdminSession(req) {
+    const cookies = parseCookies(req.headers.cookie);
+    const sessionId = cookies[ADMIN_COOKIE_NAME];
+    if (!sessionId) return null;
+    const session = adminSessions.get(sessionId);
+    if (!session) return null;
+    if (Date.now() > session.expiresAt) {
+        adminSessions.delete(sessionId);
+        return null;
+    }
+    return { sessionId, ...session };
+}
+
+function isHttpsRequest(req) {
+    return Boolean(req.secure || String(req.headers['x-forwarded-proto'] || '').toLowerCase() === 'https');
+}
+
+function requireAdmin(req, res, next) {
+    const session = getAdminSession(req);
+    if (!session) return res.status(401).json({ error: 'Not authenticated' });
+    req.adminSession = session;
+    return next();
+}
+
+function requireAdminPage(req, res, next) {
+    const session = getAdminSession(req);
+    if (!session) return res.redirect(302, '/admin');
+    req.adminSession = session;
+    return next();
+}
+
+function requireCsrf(req, res, next) {
+    const token = req.headers['x-csrf-token'];
+    if (!token || token !== req.adminSession?.csrfToken) {
+        return res.status(403).json({ error: 'Invalid CSRF token' });
+    }
+    return next();
+}
+
+function isBannedIp(ip) {
+    const normalized = normalizeIp(ip);
+    if (!normalized) return false;
+    return bannedIps.has(normalized);
+}
+
+function checkAdminLoginAllowed(ip) {
+    const key = normalizeIp(ip) || 'unknown';
+    const now = Date.now();
+    const record = adminLoginAttempts.get(key);
+    if (!record) return { allowed: true };
+    if (record.lockedUntil && now < record.lockedUntil) {
+        return { allowed: false, retryAfterMs: record.lockedUntil - now };
+    }
+    if (record.firstAt && now - record.firstAt > ADMIN_LOGIN_WINDOW_MS) {
+        adminLoginAttempts.delete(key);
+        return { allowed: true };
+    }
+    return { allowed: true };
+}
+
+function recordAdminLoginFailure(ip) {
+    const key = normalizeIp(ip) || 'unknown';
+    const now = Date.now();
+    const record = adminLoginAttempts.get(key) || { firstAt: now, failures: 0, lockedUntil: 0 };
+    if (now - record.firstAt > ADMIN_LOGIN_WINDOW_MS) {
+        record.firstAt = now;
+        record.failures = 0;
+        record.lockedUntil = 0;
+    }
+    record.failures += 1;
+    if (record.failures >= ADMIN_LOGIN_MAX_FAILURES) {
+        record.lockedUntil = now + ADMIN_LOGIN_LOCK_MS;
+    }
+    adminLoginAttempts.set(key, record);
+}
+
+function clearAdminLoginFailures(ip) {
+    const key = normalizeIp(ip) || 'unknown';
+    adminLoginAttempts.delete(key);
+}
+
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Block banned IPs from non-admin APIs
+app.use((req, res, next) => {
+    if (req.path.startsWith('/api/') && !req.path.startsWith('/api/admin/')) {
+        const ip = getClientIp(req);
+        if (ip && isBannedIp(ip)) {
+            return res.status(403).json({ error: 'Banned' });
+        }
+    }
+    return next();
+});
+
+// Protect everything under /admin except the login page.
+app.use((req, res, next) => {
+    if (!req.path.startsWith('/admin')) return next();
+    if (req.path === '/admin' || req.path === '/admin/' || req.path === '/admin/index.html') return next();
+    return requireAdminPage(req, res, next);
+});
+
+// Admin auth APIs
+app.post('/api/admin/login', (req, res) => {
+    const { passphrase } = req.body || {};
+    if (!passphrase) return res.status(400).json({ error: 'Passphrase required' });
+    const ip = getClientIp(req);
+    const allowed = checkAdminLoginAllowed(ip);
+    if (!allowed.allowed) {
+        res.setHeader('Retry-After', String(Math.ceil((allowed.retryAfterMs || 0) / 1000)));
+        return res.status(429).json({ error: 'Too many attempts' });
+    }
+
+    if (!verifyAdminPassphrase(passphrase)) {
+        recordAdminLoginFailure(ip);
+        return res.status(401).json({ error: 'Invalid passphrase' });
+    }
+    clearAdminLoginFailures(ip);
+
+    const sessionId = crypto.randomBytes(24).toString('base64url');
+    const csrfToken = crypto.randomBytes(24).toString('base64url');
+    adminSessions.set(sessionId, { csrfToken, expiresAt: Date.now() + ADMIN_SESSION_TTL_MS });
+
+    res.cookie(ADMIN_COOKIE_NAME, sessionId, {
+        httpOnly: true,
+        sameSite: 'strict',
+        secure: isHttpsRequest(req),
+        maxAge: ADMIN_SESSION_TTL_MS,
+        path: '/'
+    });
+
+    return res.json({ success: true, csrfToken });
+});
+
+app.post('/api/admin/logout', requireAdmin, requireCsrf, (req, res) => {
+    adminSessions.delete(req.adminSession.sessionId);
+    res.cookie(ADMIN_COOKIE_NAME, '', { httpOnly: true, sameSite: 'strict', secure: isHttpsRequest(req), maxAge: 0, path: '/' });
+    return res.json({ success: true });
+});
+
+app.get('/api/admin/csrf', requireAdmin, (req, res) => {
+    return res.json({ csrfToken: req.adminSession.csrfToken });
+});
+
+app.get('/api/admin/bans', requireAdmin, (req, res) => {
+    const bans = Array.from(bannedIps.entries()).map(([ip, meta]) => ({ ip, ...meta }));
+    return res.json({ bans });
+});
+
+app.post('/api/admin/ban', requireAdmin, requireCsrf, (req, res) => {
+    const ip = normalizeIp(req.body?.ip);
+    const reason = String(req.body?.reason || '').slice(0, 200);
+    if (!ip) return res.status(400).json({ error: 'IP required' });
+    bannedIps.set(ip, { reason, addedAt: Date.now() });
+
+    // Disconnect all connections associated with this IP
+    let disconnected = 0;
+    for (const conn of activeConnections.values()) {
+        if (normalizeIp(conn.ownerIp) === ip) {
+            if (conn.ws && conn.connected) {
+                conn.ws.close();
+            }
+            conn.connected = false;
+            disconnected++;
+        }
+    }
+
+    return res.json({ success: true, ip, disconnected });
+});
+
+app.post('/api/admin/unban', requireAdmin, requireCsrf, (req, res) => {
+    const ip = normalizeIp(req.body?.ip);
+    if (!ip) return res.status(400).json({ error: 'IP required' });
+    const existed = bannedIps.delete(ip);
+    return res.json({ success: true, ip, existed });
+});
+
+// Admin-only connection management APIs (replaces insecure dashboard-only logic)
+app.get('/api/admin/connections', requireAdmin, (req, res) => {
+    const connections = Array.from(activeConnections.values()).map(conn => ({
+        id: conn.id,
+        playerName: conn.playerName,
+        playId: conn.playId,
+        connected: conn.connected,
+        questionsAnswered: conn.questionsAnswered,
+        lastActivity: conn.lastActivity,
+        ip: normalizeIp(conn.ownerIp || ''),
+        banned: isBannedIp(conn.ownerIp || '')
+    }));
+    return res.json({ connections });
+});
+
+app.post('/api/admin/disconnect/:connectionId', requireAdmin, requireCsrf, (req, res) => {
+    const { connectionId } = req.params;
+    const connection = activeConnections.get(connectionId);
+    if (!connection) return res.status(404).json({ error: 'Connection not found' });
+    if (connection.ws && connection.connected) {
+        connection.ws.close();
+    }
+    connection.connected = false;
+    return res.json({ success: true });
+});
+
+// Static files (after /admin protection middleware)
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Custom validation function that doesn't use readline
@@ -157,7 +463,7 @@ async function fetchGameData(playId) {
 }
 
 // Enhanced WebSocket connection with event tracking
-async function createEnhancedWebSocketConnection(websocketUrl, playId, playerName, connectionId, gameData = null) {
+async function createEnhancedWebSocketConnection(websocketUrl, playId, playerName, connectionId, gameData = null, meta = {}) {
     const WebSocket = (await import('ws')).default;
     const ws = new WebSocket(websocketUrl);
     
@@ -169,6 +475,7 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
         questionsAnswered: 0,
         lastActivity: Date.now(),
         ws: ws,
+        ownerIp: normalizeIp(meta?.ownerIp || ''),
         isMainPlayer: true, // This is the main player, not a bot
         autoAnswer: true,   // Default to auto answer, can be changed via API
         gameData: gameData,
@@ -508,13 +815,16 @@ app.post('/api/join', async (req, res) => {
         // Create connection ID
         const connectionId = uuidv4();
 
+        const ownerIp = getClientIp(req);
+
         // Establish WebSocket connection
         const connectionData = await createEnhancedWebSocketConnection(
             negotiation.websocketUrl, 
             playId, 
             playerName, 
             connectionId,
-            gameData
+            gameData,
+            { ownerIp }
         );
 
         // Store quiz data for this connection
@@ -565,6 +875,8 @@ app.post('/api/bulk-join', async (req, res) => {
             // This allows bot connections to work even if quiz data retrieval fails
         }
 
+        const ownerIp = getClientIp(req);
+
         const results = [];
         const errors = [];
 
@@ -587,7 +899,8 @@ app.post('/api/bulk-join', async (req, res) => {
                     playId, 
                     botName, 
                     connectionId,
-                    gameData
+                    gameData,
+                    { ownerIp }
                 );
 
                 // Quiz data already stored in createEnhancedWebSocketConnection
@@ -828,13 +1141,13 @@ app.get('/api/status/:connectionId', (req, res) => {
     });
 });
 
-// Disconnect endpoint
-app.post('/api/disconnect/:connectionId', (req, res) => {
-    const { connectionId } = req.params;
-    const connection = activeConnections.get(connectionId);
-
-    if (!connection) {
-        return res.status(404).json({ error: 'Connection not found' });
+  // Disconnect endpoint (admin only)
+  app.post('/api/disconnect/:connectionId', requireAdmin, requireCsrf, (req, res) => {
+      const { connectionId } = req.params;
+      const connection = activeConnections.get(connectionId);
+  
+      if (!connection) {
+          return res.status(404).json({ error: 'Connection not found' });
     }
 
     if (connection.ws && connection.connected) {
@@ -843,22 +1156,22 @@ app.post('/api/disconnect/:connectionId', (req, res) => {
 
     connection.connected = false;
     res.json({ success: true });
-});
-
-// Get all active connections (for debugging)
-app.get('/api/connections', (req, res) => {
-    const connections = Array.from(activeConnections.values()).map(conn => ({
-        id: conn.id,
-        playerName: conn.playerName,
-        playId: conn.playId,
-        connected: conn.connected,
-        questionsAnswered: conn.questionsAnswered,
-        lastActivity: conn.lastActivity,
-        ip: conn.ip || (conn.req && (conn.req.ip || conn.req.connection?.remoteAddress)) || ''
-    }));
-
-    res.json({ connections });
-});
+  });
+  
+  // Get all active connections (for debugging)
+  app.get('/api/connections', requireAdmin, (req, res) => {
+      const connections = Array.from(activeConnections.values()).map(conn => ({
+          id: conn.id,
+          playerName: conn.playerName,
+          playId: conn.playId,
+          connected: conn.connected,
+          questionsAnswered: conn.questionsAnswered,
+          lastActivity: conn.lastActivity,
+          ip: normalizeIp(conn.ownerIp || '')
+      }));
+  
+      res.json({ connections });
+  });
 
 
 // Function to reconnect a bot after PlayAgain (legacy)
@@ -879,11 +1192,22 @@ async function reconnectBot(connectionId, newPlayId, playerName, newPin) {
             console.log('⚠️ No quiz data found for reconnection, but continuing...');
         }
         
+        // Preserve metadata from old connection
+        const oldConnection = activeConnections.get(connectionId);
+        const ownerIp = oldConnection?.ownerIp || '';
+
         // Remove old connection data
         activeConnections.delete(connectionId);
         
         // Create new WebSocket connection with same connectionId
-        await createEnhancedWebSocketConnection(negotiation.websocketUrl, newPlayId, playerName, connectionId, gameData);
+        await createEnhancedWebSocketConnection(
+            negotiation.websocketUrl,
+            newPlayId,
+            playerName,
+            connectionId,
+            gameData,
+            { ownerIp }
+        );
         console.log(`✅ ${playerName} successfully reconnected to game ${newPlayId}`);
         return true;
         
@@ -1092,12 +1416,13 @@ async function autoReconnectPlayer(connectionId, newPin, playerName, connectionD
         const gameData = await startGame(newPin, playerName);
         
         // Create new WebSocket connection
-        const newConnection = createEnhancedWebSocketConnection(
+        const newConnection = await createEnhancedWebSocketConnection(
             gameData.websocketUrl,
             gameData.playId,
             playerName,
             connectionId,
-            gameData
+            gameData,
+            { ownerIp: connectionData?.ownerIp || '' }
         );
         
         // Update connection properties
@@ -1124,12 +1449,14 @@ async function autoReconnectBot(botConnectionId, newPin, botName) {
         const gameData = await startGame(newPin, botName);
         
         // Create new WebSocket connection for bot
-        const newConnection = createEnhancedWebSocketConnection(
+        const oldConnection = activeConnections.get(botConnectionId);
+        const newConnection = await createEnhancedWebSocketConnection(
             gameData.websocketUrl,
             gameData.playId,
             botName,
             botConnectionId,
-            gameData
+            gameData,
+            { ownerIp: oldConnection?.ownerIp || '' }
         );
         
         // Restore bot properties
@@ -1186,12 +1513,14 @@ async function simpleReconnectPlayer(connectionId, newPin, playerName, autoAnswe
         const gameInfo = await startGame(newPin, playerName);
         
         // Create fresh WebSocket connection with new connectionId
-        const newConnection = createEnhancedWebSocketConnection(
+        const oldConnection = activeConnections.get(connectionId);
+        const newConnection = await createEnhancedWebSocketConnection(
             gameInfo.websocketUrl,
             gameInfo.playId,
             playerName,
             connectionId, // Reuse same connectionId for continuity
-            gameInfo.gameData
+            gameInfo.gameData,
+            { ownerIp: oldConnection?.ownerIp || '' }
         );
         
         // Set basic properties
@@ -1220,12 +1549,13 @@ async function simpleAddBot(newPin, botName) {
         const gameInfo = await startGame(newPin, botName);
         
         // Create fresh bot connection
-        const newConnection = createEnhancedWebSocketConnection(
+        const newConnection = await createEnhancedWebSocketConnection(
             gameInfo.websocketUrl,
             gameInfo.playId,
             botName,
             botConnectionId,
-            gameInfo.gameData
+            gameInfo.gameData,
+            {}
         );
         
         // Set bot properties
