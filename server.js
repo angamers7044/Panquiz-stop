@@ -134,29 +134,74 @@ function verifyAdminPassphrase(passphrase) {
 }
 
 async function promptForHiddenInput(promptText) {
-    const { createInterface } = await import('node:readline');
-    return await new Promise((resolve) => {
-        const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true });
-        const onData = (char) => {
-            char = char + '';
-            switch (char) {
-                case '\n':
-                case '\r':
-                case '\u0004':
-                    process.stdin.off('data', onData);
-                    rl.output.write('\n');
-                    break;
-                default:
-                    rl.output.write('*');
-                    break;
+    const readline = await import('node:readline');
+    if (!process.stdin.isTTY) {
+        throw new Error('No TTY available for hidden input');
+    }
+
+    readline.emitKeypressEvents(process.stdin);
+    const previousRawMode = process.stdin.isRaw;
+    process.stdin.setRawMode(true);
+
+    return await new Promise((resolve, reject) => {
+        let input = '';
+        let stars = 0;
+
+        const cleanup = () => {
+            process.stdin.off('keypress', onKeypress);
+            try {
+                process.stdin.setRawMode(Boolean(previousRawMode));
+            } catch {
+                // ignore
             }
         };
-        process.stdin.on('data', onData);
-        rl.question(promptText, (answer) => {
-            process.stdin.off('data', onData);
-            rl.close();
-            resolve(answer);
-        });
+
+        const onKeypress = (str, key) => {
+            try {
+                if (key && key.ctrl && key.name === 'c') {
+                    cleanup();
+                    reject(new Error('Cancelled'));
+                    return;
+                }
+
+                if (key && (key.name === 'return' || key.name === 'enter')) {
+                    cleanup();
+                    process.stdout.write('\n');
+                    resolve(input);
+                    return;
+                }
+
+                if (key && (key.name === 'backspace' || key.sequence === '\b' || key.sequence === '\x7f')) {
+                    if (input.length > 0) {
+                        input = input.slice(0, -1);
+                        if (stars > 0) {
+                            process.stdout.write('\b \b');
+                            stars -= 1;
+                        }
+                    }
+                    return;
+                }
+
+                // Ignore arrows, function keys, etc.
+                if (key && (key.name === 'up' || key.name === 'down' || key.name === 'left' || key.name === 'right' || key.name === 'tab')) {
+                    return;
+                }
+
+                if (typeof str === 'string' && str.length) {
+                    // Drop other control characters
+                    if (str === '\r' || str === '\n') return;
+                    input += str;
+                    process.stdout.write('*');
+                    stars += 1;
+                }
+            } catch (err) {
+                cleanup();
+                reject(err);
+            }
+        };
+
+        process.stdout.write(String(promptText || ''));
+        process.stdin.on('keypress', onKeypress);
     });
 }
 
@@ -170,7 +215,9 @@ async function ensureAdminSecretReady() {
         process.exit(1);
     }
 
-    console.log('🔐 First-run admin setup (password is not stored in HTML).');
+    console.log('🔐 First-run admin setup');
+    console.log(`- This will create ${ADMIN_SECRET_PATH} (gitignored).`);
+    console.log('- Input is hidden; you will see * characters.');
     while (true) {
         const pass1 = await promptForHiddenInput('Set admin passphrase: ');
         const pass2 = await promptForHiddenInput('Retype admin passphrase: ');
@@ -411,17 +458,75 @@ app.post('/api/admin/unban', requireAdmin, requireCsrf, (req, res) => {
 
 // Admin-only connection management APIs (replaces insecure dashboard-only logic)
 app.get('/api/admin/connections', requireAdmin, (req, res) => {
-    const connections = Array.from(activeConnections.values()).map(conn => ({
+    const includeAll = String(req.query?.all || '') === '1';
+    const connections = Array.from(activeConnections.values())
+        .filter(conn => (includeAll ? true : Boolean(conn.connected)))
+        .map(conn => ({
         id: conn.id,
         playerName: conn.playerName,
         playId: conn.playId,
         connected: conn.connected,
+        isBot: Boolean(conn.isBot),
+        autoAnswer: Boolean(conn.autoAnswer),
         questionsAnswered: conn.questionsAnswered,
         lastActivity: conn.lastActivity,
         ip: normalizeIp(conn.ownerIp || ''),
         banned: isBannedIp(conn.ownerIp || '')
     }));
     return res.json({ connections });
+});
+
+app.post('/api/admin/set-auto-answer/:connectionId', requireAdmin, requireCsrf, (req, res) => {
+    try {
+        const { connectionId } = req.params;
+        const { autoAnswer } = req.body;
+        const connection = activeConnections.get(connectionId);
+
+        if (!connection) {
+            return res.status(404).json({ error: 'Connection not found' });
+        }
+
+        connection.autoAnswer = Boolean(autoAnswer);
+        return res.json({ success: true, autoAnswer: Boolean(connection.autoAnswer) });
+    } catch (error) {
+        return res.status(500).json({ error: error.message || String(error) });
+    }
+});
+
+app.get('/api/admin/connection/:connectionId', requireAdmin, (req, res) => {
+    const { connectionId } = req.params;
+    const conn = activeConnections.get(connectionId);
+    if (!conn) return res.status(404).json({ error: 'Connection not found' });
+
+    const currentQuestion = conn.currentQuestion
+        ? {
+            questionNumber: conn.currentQuestion.questionNumber,
+            question: conn.currentQuestion.question,
+            answersCount: Array.isArray(conn.currentQuestion.answers) ? conn.currentQuestion.answers.length : 0,
+            maxAnswers: conn.currentQuestion.maxAnswers,
+            timestamp: conn.currentQuestion.timestamp
+        }
+        : null;
+
+    return res.json({
+        success: true,
+        connection: {
+            id: conn.id,
+            playerName: conn.playerName,
+            playId: conn.playId,
+            connected: Boolean(conn.connected),
+            isBot: Boolean(conn.isBot),
+            autoAnswer: Boolean(conn.autoAnswer),
+            questionsAnswered: conn.questionsAnswered,
+            lastActivity: conn.lastActivity,
+            ip: normalizeIp(conn.ownerIp || ''),
+            needsReconnection: Boolean(conn.needsReconnection),
+            reconnectedAt: conn.reconnectedAt || null,
+            medalData: conn.medalData || null,
+            gameCompleted: Boolean(conn.gameCompleted),
+            currentQuestion
+        }
+    });
 });
 
 app.post('/api/admin/disconnect/:connectionId', requireAdmin, requireCsrf, (req, res) => {
@@ -565,6 +670,7 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
         lastActivity: Date.now(),
         ws: ws,
         ownerIp: normalizeIp(meta?.ownerIp || ''),
+        isBot: Boolean(meta?.isBot),
         isMainPlayer: true, // This is the main player, not a bot
         autoAnswer: true,   // Default to auto answer, can be changed via API
         gameData: gameData,
@@ -913,7 +1019,7 @@ app.post('/api/join', async (req, res) => {
             playerName, 
             connectionId,
             gameData,
-            { ownerIp }
+            { ownerIp, isBot: false }
         );
 
         // Store quiz data for this connection
@@ -989,7 +1095,7 @@ app.post('/api/bulk-join', async (req, res) => {
                     botName, 
                     connectionId,
                     gameData,
-                    { ownerIp }
+                    { ownerIp, isBot: true }
                 );
 
                 // Quiz data already stored in createEnhancedWebSocketConnection
@@ -1295,7 +1401,7 @@ async function reconnectBot(connectionId, newPlayId, playerName, newPin) {
             playerName,
             connectionId,
             gameData,
-            { ownerIp }
+            { ownerIp, isBot: Boolean(oldConnection?.isBot) }
         );
         console.log(`✅ ${playerName} successfully reconnected to game ${newPlayId}`);
         return true;
@@ -1518,7 +1624,7 @@ async function autoReconnectPlayer(connectionId, newPin, playerName, connectionD
             playerName,
             connectionId,
             gameData,
-            { ownerIp: connectionData?.ownerIp || '' }
+            { ownerIp: connectionData?.ownerIp || '', isBot: Boolean(connectionData?.isBot) }
         );
         
         // Update connection properties
@@ -1552,7 +1658,7 @@ async function autoReconnectBot(botConnectionId, newPin, botName) {
             botName,
             botConnectionId,
             gameData,
-            { ownerIp: oldConnection?.ownerIp || '' }
+            { ownerIp: oldConnection?.ownerIp || '', isBot: true }
         );
         
         // Restore bot properties
@@ -1616,7 +1722,7 @@ async function simpleReconnectPlayer(connectionId, newPin, playerName, autoAnswe
             playerName,
             connectionId, // Reuse same connectionId for continuity
             gameInfo.gameData,
-            { ownerIp: oldConnection?.ownerIp || '' }
+            { ownerIp: oldConnection?.ownerIp || '', isBot: false }
         );
         
         // Set basic properties
@@ -1651,7 +1757,7 @@ async function simpleAddBot(newPin, botName) {
             botName,
             botConnectionId,
             gameInfo.gameData,
-            {}
+            { isBot: true }
         );
         
         // Set bot properties

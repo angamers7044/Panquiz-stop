@@ -76,10 +76,45 @@
             opacity: 0.6;
             cursor: not-allowed;
         }
+        .admin-btn.secondary {
+            background: linear-gradient(135deg, #424242 0%, #212121 100%);
+        }
         .admin-status {
             font-size: 1.1em;
             margin-bottom: 10px;
             color: #ffbaba;
+        }
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.55);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 18px;
+        }
+        .modal {
+            width: 100%;
+            max-width: 700px;
+            background: #141414;
+            border: 1px solid #ff5252;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+            padding: 16px;
+            text-align: left;
+        }
+        .modal h3 {
+            margin: 0 0 10px 0;
+            color: #ff5252;
+        }
+        .modal pre {
+            white-space: pre-wrap;
+            word-break: break-word;
+            margin: 0;
+            background: #0f0f0f;
+            border-radius: 10px;
+            padding: 12px;
+            border: 1px solid #333;
         }
     </style>
 </head>
@@ -88,9 +123,14 @@
         <div class="admin-title">Admin Dashboard</div>
         <div class="admin-section">
             <div class="admin-status" id="adminStatus">Caricamento utenti connessi...</div>
+            <div style="margin:10px 0;">
+                <button class="admin-btn secondary" id="filterAll">All</button>
+                <button class="admin-btn secondary" id="filterPlayers">Players</button>
+                <button class="admin-btn secondary" id="filterBots">Bots</button>
+            </div>
             <table class="admin-table" id="usersTable">
                 <thead>
-                    <tr><th>Nome</th><th>IP</th><th>Connessione</th><th>Azioni</th></tr>
+                    <tr><th>Tipo</th><th>Nome</th><th>IP</th><th>Connessione</th><th>Azioni</th></tr>
                 </thead>
                 <tbody></tbody>
             </table>
@@ -103,6 +143,16 @@
                 </thead>
                 <tbody></tbody>
             </table>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" id="detailsBackdrop">
+        <div class="modal">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                <h3 style="flex:1;">Connection Details</h3>
+                <button class="admin-btn secondary" id="closeDetails">Close</button>
+            </div>
+            <pre id="detailsPre">Loading...</pre>
         </div>
     </div>
     <script>
@@ -135,6 +185,14 @@
         return node;
     }
 
+    let currentFilter = 'all'; // all|players|bots
+    const btnAll = document.getElementById('filterAll');
+    const btnPlayers = document.getElementById('filterPlayers');
+    const btnBots = document.getElementById('filterBots');
+    if (btnAll) btnAll.addEventListener('click', () => { currentFilter = 'all'; fetchUsers(); });
+    if (btnPlayers) btnPlayers.addEventListener('click', () => { currentFilter = 'players'; fetchUsers(); });
+    if (btnBots) btnBots.addEventListener('click', () => { currentFilter = 'bots'; fetchUsers(); });
+
     async function fetchUsers() {
         if (!(await ensureAuth())) return;
         try {
@@ -149,12 +207,27 @@
             const tbody = document.querySelector('#usersTable tbody');
             tbody.innerHTML = '';
 
-            data.connections.forEach(conn => {
+            const connections = data.connections.filter(conn => {
+                if (currentFilter === 'players') return !conn.isBot;
+                if (currentFilter === 'bots') return Boolean(conn.isBot);
+                return true;
+            });
+
+            connections.forEach(conn => {
                 const tr = el('tr');
+                const tdType = el('td'); tdType.textContent = conn.isBot ? 'BOT' : 'PLAYER';
                 const tdName = el('td'); tdName.textContent = conn.playerName || '';
                 const tdIp = el('td'); tdIp.textContent = conn.ip || '';
                 const tdConn = el('td'); tdConn.textContent = conn.connected ? '🟢' : '🔴';
                 const tdActions = el('td');
+
+                const detailsBtn = el('button', { className: 'admin-btn', textContent: 'Details' });
+                detailsBtn.addEventListener('click', () => showDetails(conn.id));
+                tdActions.appendChild(detailsBtn);
+
+                const autoBtn = el('button', { className: 'admin-btn secondary', textContent: conn.autoAnswer ? 'Auto: ON' : 'Auto: OFF' });
+                autoBtn.addEventListener('click', () => setAutoAnswer(conn.id, !conn.autoAnswer));
+                tdActions.appendChild(autoBtn);
 
                 const kickBtn = el('button', { className: 'admin-btn danger', textContent: 'Kick' });
                 kickBtn.addEventListener('click', () => kickUser(conn.id));
@@ -169,6 +242,7 @@
                     tdActions.appendChild(banBtn);
                 }
 
+                tr.appendChild(tdType);
                 tr.appendChild(tdName);
                 tr.appendChild(tdIp);
                 tr.appendChild(tdConn);
@@ -176,9 +250,27 @@
                 tbody.appendChild(tr);
             });
 
-            document.getElementById('adminStatus').textContent = 'Utenti connessi: ' + data.connections.length;
+            document.getElementById('adminStatus').textContent = `Utenti connessi: ${connections.length} (filter: ${currentFilter})`;
         } catch (e) {
             document.getElementById('adminStatus').textContent = 'Errore caricamento utenti: ' + (e.message || e);
+        }
+    }
+
+    async function setAutoAnswer(id, autoAnswer) {
+        if (!(await ensureAuth())) return;
+        if (!id) return;
+        try {
+            const res = await fetch('/api/admin/set-auto-answer/' + encodeURIComponent(id), {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: csrfHeaders(),
+                body: JSON.stringify({ autoAnswer: Boolean(autoAnswer) })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.success) throw new Error(data.error || 'Impossibile aggiornare auto answer');
+            fetchUsers();
+        } catch (e) {
+            alert('Errore: ' + (e.message || e));
         }
     }
 
@@ -198,6 +290,57 @@
         } catch (e) {
             alert('Errore: ' + (e.message || e));
         }
+    }
+
+    async function showDetails(id) {
+        if (!(await ensureAuth())) return;
+        if (!id) return;
+        try {
+            const backdrop = document.getElementById('detailsBackdrop');
+            const pre = document.getElementById('detailsPre');
+            if (pre) pre.textContent = 'Loading...';
+            if (backdrop) backdrop.style.display = 'flex';
+
+            const res = await fetch('/api/admin/connection/' + encodeURIComponent(id), { credentials: 'same-origin' });
+            if (res.status === 401) {
+                window.location.href = '/admin';
+                return;
+            }
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.success || !data.connection) throw new Error(data.error || 'Impossibile caricare dettagli');
+            const c = data.connection;
+            const lines = [];
+            lines.push(`Type: ${c.isBot ? 'BOT' : 'PLAYER'}`);
+            lines.push(`Name: ${c.playerName || ''}`);
+            lines.push(`PlayId: ${c.playId || ''}`);
+            lines.push(`IP: ${c.ip || ''}`);
+            lines.push(`Connected: ${c.connected ? 'yes' : 'no'}`);
+            lines.push(`AutoAnswer: ${c.autoAnswer ? 'on' : 'off'}`);
+            lines.push(`QuestionsAnswered: ${c.questionsAnswered}`);
+            lines.push(`LastActivity: ${c.lastActivity ? new Date(c.lastActivity).toLocaleString() : ''}`);
+            if (c.currentQuestion) {
+                lines.push(`CurrentQuestion: #${c.currentQuestion.questionNumber || ''} (${c.currentQuestion.answersCount} answers)`);
+                lines.push(`QuestionText: ${c.currentQuestion.question || ''}`);
+            } else {
+                lines.push('CurrentQuestion: none');
+            }
+            if (c.medalData && c.medalData.name) {
+                lines.push(`Medal: ${c.medalData.name}`);
+            }
+            if (pre) pre.textContent = lines.join('\n');
+        } catch (e) {
+            const pre = document.getElementById('detailsPre');
+            if (pre) pre.textContent = 'Errore: ' + (e.message || e);
+        }
+    }
+
+    const closeBtn = document.getElementById('closeDetails');
+    const backdrop = document.getElementById('detailsBackdrop');
+    if (closeBtn && backdrop) {
+        closeBtn.addEventListener('click', () => { backdrop.style.display = 'none'; });
+        backdrop.addEventListener('click', (e) => {
+            if (e.target === backdrop) backdrop.style.display = 'none';
+        });
     }
 
     async function fetchBans() {
