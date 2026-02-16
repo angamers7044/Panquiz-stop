@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
+import fs from 'fs';
 
 // Import our existing modules
 import { promptForMatchPin } from './validate_pin.js';
@@ -45,9 +46,10 @@ const ADMIN_SESSION_TTL_MS = Number(process.env.ADMIN_SESSION_TTL_MS || 8 * 60 *
 
 // Store a hash (not the plaintext) so `public/admin/index.html` never contains the secret.
 // Format: pbkdf2$sha256$<iterations>$<saltB64Url>$<hashB64Url>
-const HARDCODED_ADMIN_PASSPHRASE_HASH = 'pbkdf2$sha256$210000$pRubkoEfsC8VxYHzNo5M7w$8A1Bf5fOSeMwoh3LvSEpevV6SnxVHURX8VRONenrEFQ';
-const ADMIN_PASSPHRASE_HASH = process.env.ADMIN_PASSPHRASE_HASH || HARDCODED_ADMIN_PASSPHRASE_HASH;
+const HARDCODED_ADMIN_PASSPHRASE_HASH = ''; // leave empty to trigger first-run setup
+const ADMIN_SECRET_PATH = path.join(__dirname, 'admin.secret.json');
 const ADMIN_PASSPHRASE = process.env.ADMIN_PASSPHRASE; // optional (legacy override)
+let resolvedAdminPassphraseHash = process.env.ADMIN_PASSPHRASE_HASH || null;
 
 const adminSessions = new Map(); // sessionId -> { csrfToken, expiresAt }
 const bannedIps = new Map(); // ip -> { reason, addedAt }
@@ -75,6 +77,27 @@ function b64UrlToBuffer(s) {
     return Buffer.from(b64 + pad, 'base64');
 }
 
+function loadAdminSecretHashFromDisk() {
+    try {
+        if (!fs.existsSync(ADMIN_SECRET_PATH)) return null;
+        const raw = fs.readFileSync(ADMIN_SECRET_PATH, 'utf8');
+        const parsed = JSON.parse(raw);
+        const hash = parsed?.adminPassphraseHash;
+        if (typeof hash === 'string' && hash.trim()) return hash.trim();
+        return null;
+    } catch {
+        return null;
+    }
+}
+
+function saveAdminSecretHashToDisk(hash) {
+    const payload = {
+        adminPassphraseHash: hash,
+        createdAt: new Date().toISOString()
+    };
+    fs.writeFileSync(ADMIN_SECRET_PATH, JSON.stringify(payload, null, 2), 'utf8');
+}
+
 function parsePbkdf2Hash(stored) {
     const parts = String(stored || '').split('$');
     if (parts.length !== 5) return null;
@@ -88,9 +111,18 @@ function parsePbkdf2Hash(stored) {
     return { iterations, salt, hash };
 }
 
+function createPbkdf2Hash(passphrase, iterations = 210000) {
+    const salt = crypto.randomBytes(16);
+    const derived = crypto.pbkdf2Sync(String(passphrase ?? ''), salt, iterations, 32, 'sha256');
+    return `pbkdf2$sha256$${iterations}$${salt.toString('base64url')}$${derived.toString('base64url')}`;
+}
+
 function verifyAdminPassphrase(passphrase) {
-    if (ADMIN_PASSPHRASE_HASH) {
-        const parsed = parsePbkdf2Hash(ADMIN_PASSPHRASE_HASH);
+    if (!resolvedAdminPassphraseHash) {
+        resolvedAdminPassphraseHash = process.env.ADMIN_PASSPHRASE_HASH || loadAdminSecretHashFromDisk() || HARDCODED_ADMIN_PASSPHRASE_HASH || null;
+    }
+    if (resolvedAdminPassphraseHash) {
+        const parsed = parsePbkdf2Hash(resolvedAdminPassphraseHash);
         if (parsed) {
             const derived = crypto.pbkdf2Sync(String(passphrase ?? ''), parsed.salt, parsed.iterations, parsed.hash.length, 'sha256');
             return crypto.timingSafeEqual(derived, parsed.hash);
@@ -99,6 +131,63 @@ function verifyAdminPassphrase(passphrase) {
     // Legacy override: plaintext in env (still compared timing-safe)
     if (ADMIN_PASSPHRASE) return secureEquals(passphrase, ADMIN_PASSPHRASE);
     return false;
+}
+
+async function promptForHiddenInput(promptText) {
+    const { createInterface } = await import('node:readline');
+    return await new Promise((resolve) => {
+        const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true });
+        const onData = (char) => {
+            char = char + '';
+            switch (char) {
+                case '\n':
+                case '\r':
+                case '\u0004':
+                    process.stdin.off('data', onData);
+                    rl.output.write('\n');
+                    break;
+                default:
+                    rl.output.write('*');
+                    break;
+            }
+        };
+        process.stdin.on('data', onData);
+        rl.question(promptText, (answer) => {
+            process.stdin.off('data', onData);
+            rl.close();
+            resolve(answer);
+        });
+    });
+}
+
+async function ensureAdminSecretReady() {
+    if (resolvedAdminPassphraseHash) return;
+    resolvedAdminPassphraseHash = loadAdminSecretHashFromDisk() || HARDCODED_ADMIN_PASSPHRASE_HASH || null;
+    if (resolvedAdminPassphraseHash) return;
+
+    if (!process.stdin.isTTY) {
+        console.error(`❌ Admin passphrase not configured. Set ADMIN_PASSPHRASE_HASH env var or create ${ADMIN_SECRET_PATH}.`);
+        process.exit(1);
+    }
+
+    console.log('🔐 First-run admin setup (password is not stored in HTML).');
+    while (true) {
+        const pass1 = await promptForHiddenInput('Set admin passphrase: ');
+        const pass2 = await promptForHiddenInput('Retype admin passphrase: ');
+        if (!pass1 || pass1.length < 6) {
+            console.log('⚠️  Passphrase too short (min 6). Try again.');
+            continue;
+        }
+        if (pass1 !== pass2) {
+            console.log('⚠️  Passphrases do not match. Try again.');
+            continue;
+        }
+        const hash = createPbkdf2Hash(pass1);
+        saveAdminSecretHashToDisk(hash);
+        resolvedAdminPassphraseHash = hash;
+        console.log(`✅ Admin passphrase configured and saved to ${ADMIN_SECRET_PATH}`);
+        break;
+    }
 }
 
 function parseCookies(cookieHeader) {
@@ -1385,25 +1474,32 @@ const shouldStartServer = process.env.NODE_ENV !== 'production' ||
                          !process.env.VERCEL;
 
 if (shouldStartServer) {
-    app.listen(PORT, '0.0.0.0', () => {
-        console.log(`🚀 Panquiz Proxy Server running on http://0.0.0.0:${PORT}`);
-        console.log(`📂 Serving web interface from /public`);
-        console.log(`🔗 API endpoints available at /api/*`);
-        console.log(`🌐 External URL will be provided by hosting service`);
-    });
+    (async () => {
+        await ensureAdminSecretReady();
 
-    // Graceful shutdown
-    process.on('SIGTERM', () => {
-        console.log('Received SIGTERM, shutting down gracefully...');
-        
-        // Close all WebSocket connections
-        for (const connection of activeConnections.values()) {
-            if (connection.ws) {
-                connection.ws.close();
+        app.listen(PORT, '0.0.0.0', () => {
+            console.log(`🚀 Panquiz Proxy Server running on http://0.0.0.0:${PORT}`);
+            console.log(`📂 Serving web interface from /public`);
+            console.log(`🔗 API endpoints available at /api/*`);
+            console.log(`🌐 External URL will be provided by hosting service`);
+        });
+
+        // Graceful shutdown
+        process.on('SIGTERM', () => {
+            console.log('Received SIGTERM, shutting down gracefully...');
+            
+            // Close all WebSocket connections
+            for (const connection of activeConnections.values()) {
+                if (connection.ws) {
+                    connection.ws.close();
+                }
             }
-        }
-        
-        process.exit(0);
+            
+            process.exit(0);
+        });
+    })().catch((err) => {
+        console.error('❌ Failed to start server:', err?.message || err);
+        process.exit(1);
     });
 }
 
