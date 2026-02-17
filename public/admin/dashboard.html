@@ -446,10 +446,18 @@
                 </div>
         <div class="admin-section">
             <div class="admin-status" id="adminStatus">Caricamento utenti connessi...</div>
-            <div style="margin:10px 0;">
-                <button class="admin-btn secondary" id="filterAll">All</button>
-                <button class="admin-btn secondary" id="filterPlayers">Players</button>
-                <button class="admin-btn secondary" id="filterBots">Bots</button>
+            <div style="margin:10px 0; display:flex; gap:10px; align-items:center;">
+                <div style="flex:1; display:flex; gap:10px;">
+                    <button class="admin-btn secondary" id="filterAll">All</button>
+                    <button class="admin-btn secondary" id="filterPlayers">Players</button>
+                    <button class="admin-btn secondary" id="filterBots">Bots</button>
+                </div>
+                <button class="admin-btn danger" id="quickBanBtn" style="font-weight:bold; white-space:nowrap;">🚫 Ban IP</button>
+            </div>
+            <!-- Bulk disconnect bots by IP (shown only in bots tab) -->
+            <div id="bulkDisconnectSection" style="display:none; margin:10px 0; gap:10px; align-items:center; padding:10px; background:#1a1a1a; border-radius:8px;">
+                <input type="text" id="bulkDisconnectIpInput" placeholder="Inserisci IP per disconnettere i bot" style="flex:1; padding:10px; background:#0f0f0f; border:1px solid #666; color:#fff; border-radius:4px;">
+                <button class="admin-btn danger" id="bulkDisconnectBtn" style="white-space:nowrap;">🔌 Disconnect Bots</button>
             </div>
             <table class="admin-table" id="usersTable">
                 <thead>
@@ -462,7 +470,25 @@
             <div class="admin-status" id="banStatus">Caricamento ban...</div>
             <table class="admin-table" id="bansTable">
                 <thead>
-                    <tr><th>IP</th><th>Motivo</th><th>Data</th><th>Azioni</th></tr>
+                    <tr><th>IP</th><th>Motivo</th><th>Data</th><th>Tempo Rimanente</th><th>Azioni</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <div class="admin-section">
+            <div class="admin-status" id="loginAttemptsStatus">Caricamento tentativi di login...</div>
+            <table class="admin-table" id="loginAttemptsTable">
+                <thead>
+                    <tr><th>IP</th><th>Risultato</th><th>Password</th><th>Data</th><th>Azioni</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <div class="admin-section">
+            <div class="admin-status" id="siteVisitorsStatus">Caricamento visitatori del sito...</div>
+            <table class="admin-table" id="siteVisitorsTable">
+                <thead>
+                    <tr><th>IP</th><th>Prima Visita</th><th>Ultima Visita</th><th>Azioni</th></tr>
                 </thead>
                 <tbody></tbody>
             </table>
@@ -476,43 +502,78 @@
                 <button class="admin-btn secondary" id="closeDetails">Close</button>
             </div>
             <pre id="detailsPre">Loading...</pre>
-            <button class="admin-btn" id="impersonateBtn" style="margin-top:12px;">👤 Impersonate Player</button>
         </div>
     </div>
 
     <div class="modal-backdrop" id="banModalBackdrop">
-        <div class="modal">
-            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
-                <h3 style="flex:1;">Ban IP Address</h3>
+        <div class="modal" style="max-width: 500px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:20px;">
+                <h3 style="flex:1; margin:0;">Ban IP Address</h3>
                 <button class="admin-btn secondary" id="closeBanModal">Close</button>
             </div>
-            <p style="margin:10px 0;">IP: <strong id="banIpDisplay"></strong></p>
-            <div id="randomizerWarning" style="background:#8b0000; padding:10px; border-radius:8px; margin-bottom:10px; display:none;">
+            
+            <div id="randomizerWarning" style="background:#8b0000; padding:10px; border-radius:8px; margin-bottom:15px; display:none;">
                 ⚠️ <strong>Randomizer Active</strong> from this IP. Will be stopped when banned.
             </div>
-            <label style="display:block; margin-bottom:10px;">
-                Ban Reason (optional):
-                <input type="text" id="banReasonInput" placeholder="e.g., Cheating, Spam, etc." style="width:100%; padding:8px; margin-top:5px; border:1px solid #ff5252; background:#0f0f0f; color:#fff; border-radius:4px;">
-            </label>
-            <button class="admin-btn danger" id="confirmBanBtn">Confirm Ban</button>
+            
+            <div style="margin-bottom:15px;">
+                <label style="display:block; margin-bottom:5px; font-weight:bold;">IP Address:</label>
+                <input type="text" id="banIpManualInput" placeholder="Enter IP address..." style="width:100%; padding:10px; border:1px solid #ff5252; background:#0f0f0f; color:#fff; border-radius:4px; font-family:monospace;">
+            </div>
+            
+            <div style="margin-bottom:15px;">
+                <label style="display:block; margin-bottom:8px; font-weight:bold;">Ban Duration:</label>
+                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px; margin-bottom:10px;">
+                    <button class="admin-btn secondary" style="padding:8px;" id="banDuration1h">1 Hour</button>
+                    <button class="admin-btn secondary" style="padding:8px;" id="banDuration24h">24 Hours</button>
+                    <button class="admin-btn secondary" style="padding:8px;" id="banDuration7d">7 Days</button>
+                </div>
+                <button class="admin-btn secondary" style="width:100%; padding:8px; margin-bottom:10px;" id="banDurationPerm">Permanent Ban</button>
+                <div style="display:flex; gap:8px;">
+                    <input type="number" id="banCustomDays" placeholder="Days" min="0" style="flex:1; padding:8px; border:1px solid #666; background:#0f0f0f; color:#fff; border-radius:4px;">
+                    <input type="number" id="banCustomHours" placeholder="Hours" min="0" max="23" style="flex:1; padding:8px; border:1px solid #666; background:#0f0f0f; color:#fff; border-radius:4px;">
+                    <input type="number" id="banCustomMinutes" placeholder="Minutes" min="0" max="59" style="flex:1; padding:8px; border:1px solid #666; background:#0f0f0f; color:#fff; border-radius:4px;">
+                    <button class="admin-btn secondary" style="padding:8px;" id="banDurationCustom">Apply</button>
+                </div>
+                <div id="selectedDuration" style="margin-top:8px; padding:8px; background:#1a1a1a; border-radius:4px; color:#aaa; text-align:center; font-size:0.9em;">
+                    Select a duration
+                </div>
+            </div>
+            
+            <div style="margin-bottom:15px;">
+                <label style="display:block; margin-bottom:5px; font-weight:bold;">Ban Reason (optional):</label>
+                <input type="text" id="banReasonInput" placeholder="e.g., Cheating, Spam, Brute force attempt..." style="width:100%; padding:10px; border:1px solid #666; background:#0f0f0f; color:#fff; border-radius:4px;">
+            </div>
+            
+            <button class="admin-btn danger" id="confirmBanBtn" style="width:100%; padding:10px;">🚫 Ban IP</button>
         </div>
     </div>
 
-    <div class="modal-backdrop" id="impersonateModalBackdrop">
-        <div class="modal">
-            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
-                <h3 style="flex:1;">Impersonate Player</h3>
-                <button class="admin-btn secondary" id="closeImpersonateModal">Close</button>
+    <div class="modal-backdrop" id="moderateModalBackdrop">
+        <div class="modal" style="max-width: 500px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:20px;">
+                <h3 style="flex:1; margin:0;">Moderate Player: <span id="moderatePlayerName"></span></h3>
+                <button class="admin-btn secondary" id="closeModerateModal">Close</button>
             </div>
-            <p id="impersonateInfo" style="margin:10px 0;"></p>
-            <div style="background:#0f0f0f; border:1px solid #333; border-radius:8px; padding:10px; margin:10px 0; max-height:200px; overflow-y:auto;">
-                <p style="margin:0 0 5px 0; font-size:0.9em; color:#aaa;">Authenticator:</p>
-                <p id="impersonateAuth" style="margin:0; word-break:break-all; font-family:monospace; font-size:0.85em;"></p>
+            
+            <div style="margin-bottom:20px; border:1px solid #333; border-radius:8px; padding:15px; background:#0a0a0a;">
+                <label style="display:flex; align-items:center; gap:10px; margin-bottom:15px; cursor:pointer;">
+                    <input type="checkbox" id="moderateBotDisabled" style="width:20px; height:20px; cursor:pointer;">
+                    <span style="flex:1; font-weight:bold;">🚫 Disable Bot Feature</span>
+                </label>
+                
+                <label style="display:block; margin-bottom:10px;">
+                    <span style="font-weight:bold; display:block; margin-bottom:8px;">Reason/Message (shown to player):</span>
+                    <textarea id="moderateReasonText" placeholder="e.g., Detected suspicious activity. Bot feature disabled." style="width:100%; height:100px; padding:10px; border:1px solid #666; background:#0f0f0f; color:#fff; border-radius:4px; resize:vertical; font-family:Arial, sans-serif;"></textarea>
+                </label>
             </div>
-            <button class="admin-btn" id="copyAuthBtn">📋 Copy Authenticator</button>
-            <button class="admin-btn secondary" id="controlPlayerBtn">🎮 Control This Player</button>
+            
+            <button class="admin-btn danger" id="applyModerationBtn" style="width:100%; padding:10px; margin-bottom:10px;">✓ Apply Moderation</button>
+            <button class="admin-btn secondary" id="clearModerationBtn" style="width:100%; padding:10px;">Clear Restrictions</button>
         </div>
     </div>
+
+
 
     <!-- Toast Notifications Container -->
     <div class="toast-container" id="toastContainer"></div>
@@ -612,9 +673,12 @@
     const btnAll = document.getElementById('filterAll');
     const btnPlayers = document.getElementById('filterPlayers');
     const btnBots = document.getElementById('filterBots');
-    if (btnAll) btnAll.addEventListener('click', () => { currentFilter = 'all'; fetchUsers(); });
-    if (btnPlayers) btnPlayers.addEventListener('click', () => { currentFilter = 'players'; fetchUsers(); });
-    if (btnBots) btnBots.addEventListener('click', () => { currentFilter = 'bots'; fetchUsers(); });
+    const quickBanBtn = document.getElementById('quickBanBtn');
+    
+    if (btnAll) btnAll.addEventListener('click', () => { currentFilter = 'all'; document.getElementById('bulkDisconnectSection').style.display = 'none'; fetchUsers(); });
+    if (btnPlayers) btnPlayers.addEventListener('click', () => { currentFilter = 'players'; document.getElementById('bulkDisconnectSection').style.display = 'none'; fetchUsers(); });
+    if (btnBots) btnBots.addEventListener('click', () => { currentFilter = 'bots'; document.getElementById('bulkDisconnectSection').style.display = 'flex'; fetchUsers(); });
+    if (quickBanBtn) quickBanBtn.addEventListener('click', () => banIp(null));
 
     async function fetchUsers() {
         if (!(await ensureAuth())) return;
@@ -656,6 +720,12 @@
                 const kickBtn = el('button', { className: 'admin-btn danger', textContent: 'Kick' });
                 kickBtn.addEventListener('click', () => kickUser(conn.id));
                 tdActions.appendChild(kickBtn);
+
+                if (!conn.isBot) {
+                    const moderateBtn = el('button', { className: 'admin-btn secondary', textContent: '⚙️ Moderate' });
+                    moderateBtn.addEventListener('click', () => showModerateModal(conn.id, conn.playerName));
+                    tdActions.appendChild(moderateBtn);
+                }
 
                 if (conn.ip) {
                     const banBtn = el('button', {
@@ -784,6 +854,17 @@
                 const tdIp = el('td'); tdIp.textContent = b.ip || '';
                 const tdReason = el('td'); tdReason.textContent = b.reason || '';
                 const tdDate = el('td'); tdDate.textContent = b.addedAt ? new Date(b.addedAt).toLocaleString() : '';
+                
+                const tdTimeRemaining = el('td');
+                if (b.secondsRemaining === null) {
+                    tdTimeRemaining.textContent = '♾️ Permanente';
+                    tdTimeRemaining.style.fontWeight = 'bold';
+                } else if (typeof b.secondsRemaining === 'number') {
+                    tdTimeRemaining.textContent = formatBanTime(b.secondsRemaining);
+                } else {
+                    tdTimeRemaining.textContent = 'Scaduto';
+                }
+                
                 const tdActions = el('td');
                 const unbanBtn = el('button', { className: 'admin-btn', textContent: 'Unban' });
                 unbanBtn.addEventListener('click', () => unbanIp(b.ip));
@@ -792,6 +873,7 @@
                 tr.appendChild(tdIp);
                 tr.appendChild(tdReason);
                 tr.appendChild(tdDate);
+                tr.appendChild(tdTimeRemaining);
                 tr.appendChild(tdActions);
                 tbody.appendChild(tr);
             });
@@ -804,58 +886,266 @@
         }
     }
 
+    function formatBanTime(seconds) {
+        if (seconds <= 0) return 'Scaduto';
+        
+        const days = Math.floor(seconds / (24 * 60 * 60));
+        const hours = Math.floor((seconds % (24 * 60 * 60)) / (60 * 60));
+        const minutes = Math.floor((seconds % (60 * 60)) / 60);
+        const secs = seconds % 60;
+        
+        const parts = [];
+        if (days > 0) parts.push(`${days}g`);
+        if (hours > 0) parts.push(`${hours}h`);
+        if (minutes > 0) parts.push(`${minutes}m`);
+        if (secs > 0 && seconds < 60) parts.push(`${secs}s`);
+        
+        return parts.length > 0 ? parts.join(' ') : '0s';
+    }
+
+    async function fetchLoginAttempts() {
+        if (!(await ensureAuth())) return;
+        try {
+            const res = await fetch('/api/admin/login-audit-log', { credentials: 'same-origin' });
+            if (res.status === 401) {
+                window.location.href = '/admin';
+                return;
+            }
+            const data = await res.json().catch(() => ({}));
+            const logs = Array.isArray(data.logs) ? data.logs : [];
+
+            const tbody = document.querySelector('#loginAttemptsTable tbody');
+            tbody.innerHTML = '';
+            logs.forEach(log => {
+                const tr = el('tr');
+                const tdIp = el('td'); tdIp.textContent = log.ip || 'unknown';
+                
+                const tdResult = el('td');
+                tdResult.textContent = log.success ? '✅ Successo' : '❌ Fallito';
+                tdResult.style.color = log.success ? '#38ef7d' : '#ff5252';
+                tdResult.style.fontWeight = 'bold';
+                
+                const tdPassword = el('td');
+                if (log.success) {
+                    tdPassword.textContent = '••••••••';
+                    tdPassword.style.color = '#999';
+                } else {
+                    tdPassword.textContent = log.passphrase || '(non disponibile)';
+                }
+                
+                const tdDate = el('td');
+                tdDate.textContent = log.timestamp ? new Date(log.timestamp).toLocaleString() : '';
+                
+                const tdActions = el('td');
+                if (!log.success) {
+                    const banBtn = el('button', { className: 'admin-btn danger', textContent: 'Ban IP' });
+                    banBtn.addEventListener('click', () => banIp(log.ip));
+                    tdActions.appendChild(banBtn);
+                }
+
+                tr.appendChild(tdIp);
+                tr.appendChild(tdResult);
+                tr.appendChild(tdPassword);
+                tr.appendChild(tdDate);
+                tr.appendChild(tdActions);
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById('loginAttemptsStatus').textContent = 'Tentativi di login: ' + logs.length;
+        } catch (e) {
+            document.getElementById('loginAttemptsStatus').textContent = 'Errore caricamento tentativi: ' + (e.message || e);
+        }
+    }
+
+    async function showModerateModal(connectionId, playerName) {
+        if (!(await ensureAuth())) return;
+        
+        document.getElementById('moderatePlayerName').textContent = playerName || 'Unknown';
+        document.getElementById('moderateBotDisabled').checked = false;
+        document.getElementById('moderateReasonText').value = '';
+        
+        window.pendingModerationId = connectionId;
+        document.getElementById('moderateModalBackdrop').style.display = 'flex';
+    }
+
+    async function fetchSiteVisitors() {
+        if (!(await ensureAuth())) return;
+        try {
+            const res = await fetch('/api/admin/site-visitors', { credentials: 'same-origin' });
+            if (res.status === 401) {
+                window.location.href = '/admin';
+                return;
+            }
+            const data = await res.json().catch(() => ({}));
+            const visitors = Array.isArray(data.visitors) ? data.visitors : [];
+
+            const tbody = document.querySelector('#siteVisitorsTable tbody');
+            tbody.innerHTML = '';
+            visitors.forEach(visitor => {
+                const tr = el('tr');
+                const tdIp = el('td'); tdIp.textContent = visitor.ip || 'unknown';
+                const tdFirst = el('td'); tdFirst.textContent = visitor.firstVisit ? new Date(visitor.firstVisit).toLocaleString() : '';
+                const tdLast = el('td'); tdLast.textContent = visitor.lastVisit ? new Date(visitor.lastVisit).toLocaleString() : '';
+                const tdActions = el('td');
+                
+                const banBtn = el('button', { className: 'admin-btn danger', textContent: 'Ban IP' });
+                banBtn.addEventListener('click', () => banIp(visitor.ip));
+                tdActions.appendChild(banBtn);
+
+                tr.appendChild(tdIp);
+                tr.appendChild(tdFirst);
+                tr.appendChild(tdLast);
+                tr.appendChild(tdActions);
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById('siteVisitorsStatus').textContent = 'Visitatori del sito: ' + visitors.length;
+        } catch (e) {
+            document.getElementById('siteVisitorsStatus').textContent = 'Errore caricamento visitatori: ' + (e.message || e);
+        }
+    }
+
+    async function applyModeration() {
+        if (!(await ensureAuth())) return;
+        const connectionId = window.pendingModerationId;
+        if (!connectionId) return;
+        
+        const botDisabled = document.getElementById('moderateBotDisabled').checked;
+        const reason = document.getElementById('moderateReasonText').value.trim();
+        
+        try {
+            const res = await fetch(`/api/admin/moderate/${encodeURIComponent(connectionId)}`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: csrfHeaders(),
+                body: JSON.stringify({
+                    botDisabled: botDisabled,
+                    reason: reason
+                })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.success) throw new Error(data.error || 'Moderazione fallita');
+            
+            document.getElementById('moderateModalBackdrop').style.display = 'none';
+            showToast('Moderazione applicata!' + (reason ? ' Messaggio inviato al giocatore.' : ''), 'success');
+            fetchUsers();
+        } catch (e) {
+            showToast('Errore: ' + (e.message || e), 'error');
+        }
+    }
+
+    async function clearModeration() {
+        if (!(await ensureAuth())) return;
+        const connectionId = window.pendingModerationId;
+        if (!connectionId) return;
+        
+        try {
+            const res = await fetch(`/api/admin/moderate/${encodeURIComponent(connectionId)}`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: csrfHeaders(),
+                body: JSON.stringify({
+                    botDisabled: false,
+                    reason: ''
+                })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.success) throw new Error(data.error || 'Cancellazione fallita');
+            
+            document.getElementById('moderateModalBackdrop').style.display = 'none';
+            showToast('Restrizioni rimosse!', 'success');
+            fetchUsers();
+        } catch (e) {
+            showToast('Errore: ' + (e.message || e), 'error');
+        }
+    }
+
     async function banIp(ip) {
         if (!(await ensureAuth())) return;
-        if (!ip) return;
         
-        // Show modal
-        document.getElementById('banIpDisplay').textContent = ip;
+        // Clear inputs and set up for new ban
+        document.getElementById('banIpManualInput').value = ip || '';
         document.getElementById('banReasonInput').value = '';
+        document.getElementById('banCustomDays').value = '';
+        document.getElementById('banCustomHours').value = '';
+        document.getElementById('banCustomMinutes').value = '';
+        document.getElementById('selectedDuration').textContent = 'Select a duration';
+        window.selectedBanDuration = null;
         
-        // Check randomizer status
-        try {
-            const res = await fetch('/api/randomizer/status');
-            const data = await res.json();
-            if (data.status === 'running' && data.ip === ip) {
-                document.getElementById('randomizerWarning').style.display = 'block';
-            } else {
+        // Check randomizer status if IP is provided
+        if (ip) {
+            try {
+                const res = await fetch('/api/randomizer/status');
+                const data = await res.json();
+                if (data.status === 'running' && data.ip === ip) {
+                    document.getElementById('randomizerWarning').style.display = 'block';
+                } else {
+                    document.getElementById('randomizerWarning').style.display = 'none';
+                }
+            } catch {
                 document.getElementById('randomizerWarning').style.display = 'none';
             }
-        } catch {
+        } else {
             document.getElementById('randomizerWarning').style.display = 'none';
         }
         
         document.getElementById('banModalBackdrop').style.display = 'flex';
-        
-        // Store IP for confirmation handler
-        window.pendingBanIp = ip;
     }
 
     async function confirmBan() {
         if (!(await ensureAuth())) return;
-        const ip = window.pendingBanIp;
+        const ip = document.getElementById('banIpManualInput').value.trim();
         const reason = document.getElementById('banReasonInput').value.trim();
+        const duration = window.selectedBanDuration;
         
-        if (!ip) return;
+        if (!ip) {
+            showToast('Inserisci un IP da bannare', 'error');
+            return;
+        }
+        
+        if (!duration) {
+            showToast('Seleziona una durata del ban', 'error');
+            return;
+        }
         
         try {
             const res = await fetch('/api/admin/ban', {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: csrfHeaders(),
-                body: JSON.stringify({ ip, reason })
+                body: JSON.stringify({ ip, reason, duration })
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok || !data.success) throw new Error(data.error || 'Ban fallito');
             
             document.getElementById('banModalBackdrop').style.display = 'none';
-            if (data.randomizerStopped) {
-                showToast('IP bannato! Randomizer stoppato.' + (data.disconnected ? ` (${data.disconnected} disconnessi)` : ''), 'success');
-            } else {
-                showToast('IP bannato!' + (data.disconnected ? ` (${data.disconnected} disconnessi)` : ''), 'success');
+            let durationText = '';
+            if (duration === 'permanent') {
+                durationText = 'permanente';
+            } else if (typeof duration === 'string') {
+                durationText = `per ${duration}`;
+            } else if (typeof duration === 'number') {
+                const hours = Math.floor(duration / (60 * 60 * 1000));
+                const days = Math.floor(hours / 24);
+                if (days > 0) {
+                    durationText = `per ${days}g`;
+                } else {
+                    durationText = `per ${hours}h`;
+                }
             }
+            
+            let message = `IP bannato ${durationText}!`;
+            if (data.randomizerStopped) {
+                message += ' Randomizer stoppato.';
+            }
+            if (data.disconnected) {
+                message += ` (${data.disconnected} disconnessi)`;
+            }
+            
+            showToast(message, 'success');
             fetchUsers();
             fetchBans();
+            fetchSiteVisitors();
         } catch (e) {
             showToast('Errore: ' + (e.message || e), 'error');
         }
@@ -935,7 +1225,37 @@
     }
     
     // Ban modal listeners
-    const banModalBackdrop = document.getElementById('banModalBackdrop');
+    // Bulk disconnect bots by IP
+    const bulkDisconnectBtn = document.getElementById('bulkDisconnectBtn');
+    const bulkDisconnectInput = document.getElementById('bulkDisconnectIpInput');
+    if (bulkDisconnectBtn) {
+        bulkDisconnectBtn.addEventListener('click', async () => {
+            if (!(await ensureAuth())) return;
+            const ip = bulkDisconnectInput.value.trim();
+            if (!ip) {
+                showToast('Inserisci un IP valido', 'error');
+                return;
+            }
+            if (confirm(`Disconnettere tutti i bot creati da IP ${ip}?`)) {
+                try {
+                    const res = await fetch('/api/admin/bulk-disconnect-bots', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: csrfHeaders(),
+                        body: JSON.stringify({ ip })
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || !data.success) throw new Error(data.error || 'Errore disconnessione');
+                    
+                    showToast(`${data.disconnected} bot disconnessi da IP ${ip}`, 'success');
+                    bulkDisconnectInput.value = '';
+                    fetchUsers();
+                } catch (e) {
+                    showToast('Errore: ' + (e.message || e), 'error');
+                }
+            }
+        });
+    }
     const closeBanModalBtn = document.getElementById('closeBanModal');
     const confirmBanBtn = document.getElementById('confirmBanBtn');
     
@@ -948,6 +1268,76 @@
     
     if (confirmBanBtn) {
         confirmBanBtn.addEventListener('click', confirmBan);
+    }
+    
+    // Moderation modal listeners
+    const moderateModalBackdrop = document.getElementById('moderateModalBackdrop');
+    const closeModerateModalBtn = document.getElementById('closeModerateModal');
+    const applyModerationBtn = document.getElementById('applyModerationBtn');
+    const clearModerationBtn = document.getElementById('clearModerationBtn');
+    
+    if (closeModerateModalBtn && moderateModalBackdrop) {
+        closeModerateModalBtn.addEventListener('click', () => { moderateModalBackdrop.style.display = 'none'; });
+        moderateModalBackdrop.addEventListener('click', (e) => {
+            if (e.target === moderateModalBackdrop) moderateModalBackdrop.style.display = 'none';
+        });
+    }
+    
+    if (applyModerationBtn) {
+        applyModerationBtn.addEventListener('click', applyModeration);
+    }
+    
+    if (clearModerationBtn) {
+        clearModerationBtn.addEventListener('click', clearModeration);
+    }
+    
+    // Ban duration button listeners
+    const banDuration1h = document.getElementById('banDuration1h');
+    const banDuration24h = document.getElementById('banDuration24h');
+    const banDuration7d = document.getElementById('banDuration7d');
+    const banDurationPerm = document.getElementById('banDurationPerm');
+    const banDurationCustom = document.getElementById('banDurationCustom');
+    const selectedDurationDisplay = document.getElementById('selectedDuration');
+    
+    function updateDurationDisplay(text, duration) {
+        selectedDurationDisplay.textContent = text;
+        window.selectedBanDuration = duration;
+        // Visual feedback - reset button styles
+        [banDuration1h, banDuration24h, banDuration7d, banDurationPerm].forEach(btn => {
+            if (btn) btn.style.opacity = '0.6';
+        });
+    }
+    
+    if (banDuration1h) {
+        banDuration1h.addEventListener('click', () => updateDurationDisplay('Ban di 1 ora', '1h'));
+    }
+    if (banDuration24h) {
+        banDuration24h.addEventListener('click', () => updateDurationDisplay('Ban di 24 ore', '24h'));
+    }
+    if (banDuration7d) {
+        banDuration7d.addEventListener('click', () => updateDurationDisplay('Ban di 7 giorni', '7d'));
+    }
+    if (banDurationPerm) {
+        banDurationPerm.addEventListener('click', () => updateDurationDisplay('Ban permanente', 'permanent'));
+    }
+    if (banDurationCustom) {
+        banDurationCustom.addEventListener('click', () => {
+            const days = parseInt(document.getElementById('banCustomDays').value) || 0;
+            const hours = parseInt(document.getElementById('banCustomHours').value) || 0;
+            const minutes = parseInt(document.getElementById('banCustomMinutes').value) || 0;
+            const totalMs = (days * 24 * 60 * 60 * 1000) + (hours * 60 * 60 * 1000) + (minutes * 60 * 1000);
+            
+            if (totalMs === 0) {
+                showToast('Inserisci durata personalizzata', 'error');
+                return;
+            }
+            
+            let text = 'Ban personalizzato: ';
+            if (days > 0) text += `${days}g `;
+            if (hours > 0) text += `${hours}h `;
+            if (minutes > 0) text += `${minutes}m`;
+            updateDurationDisplay(text, totalMs);
+        });
     }
     
     // Impersonate modal listeners
@@ -986,8 +1376,12 @@
 
     fetchUsers();
     fetchBans();
+    fetchLoginAttempts();
+    fetchSiteVisitors();
     setInterval(fetchUsers, 5000);
     setInterval(fetchBans, 8000);
+    setInterval(fetchLoginAttempts, 6000);
+    setInterval(fetchSiteVisitors, 10000);
     </script>
 </body>
 </html>

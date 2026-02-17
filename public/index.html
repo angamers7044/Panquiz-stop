@@ -1697,22 +1697,6 @@
         });
         const API_BASE = '/api';
         
-        // Check for admin-provided authenticator from impersonate feature
-        function getUrlParam(name) {
-            const url = new URL(window.location.href);
-            return url.searchParams.get(name);
-        }
-        
-        let impersonateAuth = getUrlParam('auth');
-        let impersonateName = getUrlParam('name');
-        
-        // If admin provided authenticator, set it in a cookie and auto-connect
-        if (impersonateAuth) {
-            console.log('👤 Impersonating player:', impersonateName);
-            setCookie('panquiz_auth', impersonateAuth, 1);
-            // Clear URL params from address bar
-            window.history.replaceState({}, document.title, window.location.pathname);
-        }
         
         // Cookie management functions
         function setCookie(name, value, days = 1) {
@@ -2437,7 +2421,7 @@
             answersModal: document.getElementById('answersModal')
         };
 
-        function showBanScreen(reason) {
+        function showBanScreen(reason, data = {}) {
             // Hide all UI elements
             if (elements.container) elements.container.style.display = 'none';
             if (elements.form) elements.form.style.display = 'none';
@@ -2462,7 +2446,16 @@
                 // Update reason
                 const reasonEl = document.getElementById('banReason');
                 if (reasonEl) {
-                    reasonEl.textContent = reason || 'Nessun motivo fornito';
+                    let banText = reason || 'Nessun motivo fornito';
+                    
+                    // Add time remaining if available
+                    if (data.timeRemainFormatted) {
+                        banText += `\n\n⏱️ Tempo rimanente: ${data.timeRemainFormatted}`;
+                    } else if (data.permanent) {
+                        banText += `\n\n♾️ Ban permanente`;
+                    }
+                    
+                    reasonEl.textContent = banText;
                 }
             }
         }
@@ -2573,7 +2566,7 @@
             
             // Check if banned
             if (response.status === 403 && data.error === 'Banned') {
-                showBanScreen(data.reason);
+                showBanScreen(data.reason, data);
                 throw new Error('BANNED');
             }
             
@@ -2606,7 +2599,7 @@
 
                 // Check if banned
                 if (response.status === 403 && data.error === 'Banned') {
-                    showBanScreen(data.reason);
+                    showBanScreen(data.reason, data);
                     return;
                 }
 
@@ -2616,6 +2609,24 @@
 
                 currentConnection = data.connectionId;
                 currentPlayId = data.playId; // Save playId for bot management
+                
+                // Immediately check if quiz already started (wait a tiny bit for websocket to connect)
+                await new Promise(resolve => setTimeout(resolve, 200));
+                
+                const statusCheckResponse = await fetch(`${API_BASE}/status/${currentConnection}`);
+                const statusData = await statusCheckResponse.json();
+                
+                if (statusData.quizAlreadyStarted) {
+                    console.log('⚠️ Quiz already started - cancelling join');
+                    showStatus('⚠️ La partita è già iniziata! Non puoi più unirti.', 'error');
+                    // Clear and go back to main page
+                    clearSession();
+                    currentConnection = null;
+                    elements.pin.value = '';
+                    elements.playerName.value = '';
+                    return;
+                }
+                
                 showGameInfo();
                 monitorConnection();
                 
@@ -2645,7 +2656,7 @@
 
                 // Check if banned
                 if (response.status === 403 && data.error === 'Banned') {
-                    showBanScreen(data.reason);
+                    showBanScreen(data.reason, data);
                     return;
                 }
 
@@ -2796,14 +2807,42 @@
                 const data = await response.json();
 
                 if (!response.ok) {
+                    // Check if it's a moderation error
+                    if (data.error === 'Bot feature disabled' && data.reason) {
+                        throw new Error(`⚠️ Feature disabled: ${data.reason}`);
+                    }
                     throw new Error(data.error || 'Errore avvio bot');
                 }
 
+                // Wait for websockets to connect
+                await new Promise(resolve => setTimeout(resolve, 200));
+
+                // Check if quiz already started for any bots
+                const validBots = [];
+                for (const bot of data.bots) {
+                    const statusResponse = await fetch(`${API_BASE}/status/${bot.connectionId}`);
+                    const statusData = await statusResponse.json();
+                    
+                    if (statusData.quizAlreadyStarted) {
+                        console.log(`⚠️ Quiz already started for bot ${bot.botName}`);
+                    } else {
+                        validBots.push(bot);
+                    }
+                }
+
+                if (validBots.length === 0) {
+                    throw new Error('⚠️ La partita è già iniziata! I bot non possono unirsi.');
+                }
+
                 // Add successful bots to our list
-                activeBots.push(...data.bots);
+                activeBots.push(...validBots);
                 updateBotsDisplay();
 
-                showStatus(data.message, 'success');
+                const botMessage = validBots.length === data.bots.length 
+                    ? data.message 
+                    : `⚠️ ${validBots.length}/${data.bots.length} bot avviati. ${data.bots.length - validBots.length} non potevano unirsi perché la partita è già iniziata.`;
+
+                showStatus(botMessage, 'success');
                 document.getElementById('bulkBotNames').value = '';
 
             } catch (error) {
@@ -3318,6 +3357,12 @@ document.head.appendChild(style);
         let running = false;
         let statusInterval = null;
         let foundSuccess = false;
+        let currentRandomizerSessionId = null; // Track current session
+        
+        function generateSessionId() {
+            return 'randomizer_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+        }
+        
         function showPopup() {
             // Check if banned
             if (elements.banScreen && elements.banScreen.style.display === 'flex') {
@@ -3326,22 +3371,29 @@ document.head.appendChild(style);
             minimized.style.display = 'none';
             popup.style.display = 'flex';
         }
+        
         function hidePopup() {
             popup.style.display = 'none';
             minimized.style.display = 'flex';
         }
+        
         minimized.onclick = showPopup;
         closeBtn.onclick = hidePopup;
         minimizeBtn.onclick = hidePopup;
+        
         async function pollStatus() {
-            const res = await fetch('/api/randomizer/status');
+            if (!currentRandomizerSessionId) {
+                return; // No active session
+            }
+            
+            const res = await fetch(`/api/randomizer/status?sessionId=${currentRandomizerSessionId}`);
             
             // Check if banned
             if (res.status === 403) {
                 const data = await res.json();
                 if (data.error === 'Banned') {
                     logDiv.innerHTML = "<span style='color:#dc3545'>❌ Sei bannato! Randomizer disabilitato.</span>";
-                    showBanScreen(data.reason);
+                    showBanScreen(data.reason, data);
                     running = false;
                     startBtn.disabled = true;
                     stopBtn.disabled = true;
@@ -3367,7 +3419,7 @@ document.head.appendChild(style);
             let found = false;
             if (data.found && data.found.pin) {
                 found = true;
-            } else if (data.log && data.log.some(line => line.includes('PIN VALIDO TROVATO'))) {
+            } else if (data.log && data.log.some(line => line.includes('PIN DISPONIBILE'))) {
                 found = true;
             }
 
@@ -3396,6 +3448,7 @@ document.head.appendChild(style);
                 statusInterval = null;
             }
         }
+        
         form.onsubmit = async function(e) {
             e.preventDefault();
             
@@ -3413,11 +3466,14 @@ document.head.appendChild(style);
                 return;
             }
             
+            // Generate new session ID for this randomizer run
+            currentRandomizerSessionId = generateSessionId();
+            
             // Try to start randomizer
             const response = await fetch('/api/randomizer/start', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ startPin })
+                body: JSON.stringify({ startPin, sessionId: currentRandomizerSessionId })
             });
             
             // Check if banned (403 response)
@@ -3425,13 +3481,15 @@ document.head.appendChild(style);
                 const data = await response.json();
                 if (data.error === 'Banned') {
                     logDiv.innerHTML = "<span style='color:#dc3545'>❌ Sei bannato e non puoi usare il randomizer!</span>";
-                    showBanScreen(data.reason);
+                    showBanScreen(data.reason, data);
+                    currentRandomizerSessionId = null;
                     return;
                 }
             }
             
             if (!response.ok) {
                 logDiv.innerHTML = "<span style='color:#dc3545'>Errore avvio randomizer</span>";
+                currentRandomizerSessionId = null;
                 return;
             }
             
@@ -3445,6 +3503,7 @@ document.head.appendChild(style);
             minimizedIcon.textContent = '🎲';
             foundSuccess = false;
         };
+        
         stopBtn.onclick = async function() {
             // Check if user is banned
             if (elements.banScreen && elements.banScreen.style.display === 'flex') {
@@ -3452,18 +3511,27 @@ document.head.appendChild(style);
                 return;
             }
             
-            const response = await fetch('/api/randomizer/stop', { method: 'POST' });
+            if (!currentRandomizerSessionId) {
+                return; // No active session
+            }
+            
+            const response = await fetch('/api/randomizer/stop', { 
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sessionId: currentRandomizerSessionId })
+            });
             
             // Check if banned
             if (response.status === 403) {
                 const data = await response.json();
                 if (data.error === 'Banned') {
                     logDiv.innerHTML = "<span style='color:#dc3545'>❌ Sei bannato!</span>";
-                    showBanScreen(data.reason);
+                    showBanScreen(data.reason, data);
                     return;
                 }
             }
             
+            currentRandomizerSessionId = null;
             pollStatus();
         };
         // Start minimized by default

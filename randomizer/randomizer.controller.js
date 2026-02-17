@@ -1,25 +1,62 @@
 import fetch from 'node-fetch';
 import { URLSearchParams } from 'url';
 import WebSocket from 'ws';
+import { v4 as uuidv4 } from 'uuid';
 
-export let bruteForceState = {
-    running: false,
-    currentPin: null,
-    startPin: null,
-    found: null,
-    log: [],
-    stopRequested: false,
-    authenticator: null,
-    tempConnections: new Map() // Track temp connections for QuizAlreadyStarted check
-};
+// Store multiple randomizer sessions - one per user/device
+export let randomizerSessions = new Map();
+
+// Helper to get or create a session for a user
+function getOrCreateSession(sessionId) {
+    if (!randomizerSessions.has(sessionId)) {
+        randomizerSessions.set(sessionId, {
+            id: sessionId,
+            running: false,
+            currentPin: null,
+            startPin: null,
+            found: null,
+            log: [],
+            stopRequested: false,
+            authenticator: null,
+            createdAt: Date.now()
+        });
+    }
+    return randomizerSessions.get(sessionId);
+}
 
 function getRandomizerStatus(req, res) {
+    // Get session ID from query or cookie
+    let sessionId = req.query.sessionId || req.cookies?.radiomizer_session_id;
+    
+    // If no session ID, this is an initial status check - just return empty
+    if (!sessionId) {
+        return res.json({
+            running: false,
+            currentPin: null,
+            startPin: null,
+            found: null,
+            log: []
+        });
+    }
+    
+    const session = randomizerSessions.get(sessionId);
+    if (!session) {
+        return res.json({
+            running: false,
+            currentPin: null,
+            startPin: null,
+            found: null,
+            log: []
+        });
+    }
+    
     res.json({
-        running: bruteForceState.running,
-        currentPin: bruteForceState.currentPin,
-        startPin: bruteForceState.startPin,
-        found: bruteForceState.found,
-        log: bruteForceState.log.slice(-100)
+        running: session.running,
+        currentPin: session.currentPin,
+        startPin: session.startPin,
+        found: session.found,
+        log: session.log.slice(-100),
+        sessionId: sessionId
     });
 }
 
@@ -119,28 +156,35 @@ async function testPinForAvailability(pinCode, playData) {
 }
 
 async function startRandomizer(req, res) {
-    if (bruteForceState.running) {
-        return res.status(400).json({ error: 'Brute force already running' });
+    const { startPin, authenticator, sessionId } = req.body;
+    
+    // Create a new session ID if not provided
+    const newSessionId = sessionId || uuidv4();
+    const session = getOrCreateSession(newSessionId);
+    
+    if (session.running) {
+        return res.status(400).json({ error: 'Brute force already running', sessionId: newSessionId });
     }
-    const { startPin, authenticator } = req.body;
+    
     if (typeof startPin !== 'number' || startPin < 0 || startPin > 999999) {
         return res.status(400).json({ error: 'Invalid startPin' });
     }
-    bruteForceState.running = true;
-    bruteForceState.stopRequested = false;
-    bruteForceState.startPin = startPin;
-    bruteForceState.currentPin = startPin;
-    bruteForceState.found = null;
-    bruteForceState.authenticator = authenticator || null;
-    bruteForceState.log = [`🚀 Controllo PIN in corso partendo da: ${startPin.toString().padStart(6, '0')}...`];
+    
+    session.running = true;
+    session.stopRequested = false;
+    session.startPin = startPin;
+    session.currentPin = startPin;
+    session.found = null;
+    session.authenticator = authenticator || null;
+    session.log = [`🚀 Controllo PIN in corso partendo da: ${startPin.toString().padStart(6, '0')}...`];
 
     // Parallel batch optimization
     (async () => {
         const BATCH_SIZE = 50;
         for (let i = startPin; i <= 999999; i += BATCH_SIZE) {
-            if (!bruteForceState.running || bruteForceState.stopRequested) {
-                bruteForceState.log.push('⏹️ Brute force fermato manualmente.');
-                bruteForceState.running = false;
+            if (!session.running || session.stopRequested) {
+                session.log.push('⏹️ Brute force fermato manualmente.');
+                session.running = false;
                 break;
             }
             const batch = [];
@@ -165,42 +209,54 @@ async function startRandomizer(req, res) {
             }
             const results = await Promise.all(batch);
             for (const result of results) {
-                bruteForceState.currentPin = parseInt(result.pinCode, 10);
+                session.currentPin = parseInt(result.pinCode, 10);
                 if (result.error) {
-                    bruteForceState.log.push(`⚠️ Errore di connessione con PIN ${result.pinCode}: ${result.error.message || result.error}`);
+                    session.log.push(`⚠️ Errore di connessione con PIN ${result.pinCode}: ${result.error.message || result.error}`);
                 } else if (result.data && result.data.errorCode === 0) {
                     // PIN is valid - now check if quiz is already started
-                    bruteForceState.log.push(`🎯 PIN VALIDO trovato: ${result.pinCode} - Verifico disponibilità quiz...`);
+                    session.log.push(`🎯 PIN VALIDO trovato: ${result.pinCode} - Verifico disponibilità quiz...`);
                     
                     // Test the PIN for availability (wait 1 second for QuizAlreadyStarted)
                     const testResult = await testPinForAvailability(result.pinCode, result.data);
                     
                     if (testResult.available) {
                         // Quiz is available!
-                        bruteForceState.log.push(`✅ PIN DISPONIBILE: ${result.pinCode} - QUIZ TROVATO!`);
-                        bruteForceState.found = { pin: result.pinCode, data: result.data };
-                        bruteForceState.running = false;
+                        session.log.push(`✅ PIN DISPONIBILE: ${result.pinCode} - QUIZ TROVATO!`);
+                        session.found = { pin: result.pinCode, data: result.data };
+                        session.running = false;
                         return;
                     } else {
                         // Quiz already started, continue searching
-                        bruteForceState.log.push(`⏳ PIN ${result.pinCode} - Quiz già avviato, continuo ricerca...`);
+                        session.log.push(`⏳ PIN ${result.pinCode} - Quiz già avviato, continuo ricerca...`);
                     }
                 } else if (result.data && result.data.errorCode === 1) {
-                    bruteForceState.log.push(`❌ PIN ${result.pinCode} errato (errorCode: 1)`);
+                    session.log.push(`❌ PIN ${result.pinCode} errato (errorCode: 1)`);
                 } else {
-                    bruteForceState.log.push(`❓ Risposta insolita per ${result.pinCode}: ${JSON.stringify(result.data)}`);
+                    session.log.push(`❓ Risposta insolita per ${result.pinCode}: ${JSON.stringify(result.data)}`);
                 }
             }
         }
-        bruteForceState.running = false;
+        session.running = false;
     })();
-    res.json({ started: true });
+    
+    res.json({ started: true, sessionId: newSessionId });
 }
 
 function stopRandomizer(req, res) {
-    bruteForceState.stopRequested = true;
-    bruteForceState.running = false;
-    bruteForceState.authenticator = null;
+    const { sessionId } = req.body || {};
+    
+    if (!sessionId) {
+        return res.status(400).json({ error: 'Session ID required' });
+    }
+    
+    const session = randomizerSessions.get(sessionId);
+    if (!session) {
+        return res.status(404).json({ error: 'Session not found' });
+    }
+    
+    session.stopRequested = true;
+    session.running = false;
+    session.authenticator = null;
     res.json({ stopped: true });
 }
 
@@ -217,8 +273,10 @@ function getCorrectAnswer(q) {
     return '';
 }
 
-function checkRandomizerAuthenticator(auth) {
-    return auth && bruteForceState.authenticator && auth === bruteForceState.authenticator;
+function checkRandomizerAuthenticator(auth, sessionId) {
+    if (!sessionId || !auth) return false;
+    const session = randomizerSessions.get(sessionId);
+    return session && auth === session.authenticator;
 }
 
 export { getRandomizerStatus, startRandomizer, stopRandomizer, getCorrectAnswer, checkRandomizerAuthenticator };

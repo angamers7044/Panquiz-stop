@@ -127,8 +127,12 @@ const ADMIN_PASSPHRASE = process.env.ADMIN_PASSPHRASE; // optional (legacy overr
 let resolvedAdminPassphraseHash = process.env.ADMIN_PASSPHRASE_HASH || null;
 
 const adminSessions = new Map(); // sessionId -> { csrfToken, expiresAt }
-const bannedIps = new Map(); // ip -> { reason, addedAt }
+const bannedIps = new Map(); // ip -> { reason, addedAt, expiresAt (or null for permanent), secondsRemaining }
+const banTimersFile = path.join(__dirname, 'ban_timers.json'); // Persistent ban timers storage
+const siteVisitors = new Map(); // ip -> { firstVisit, lastVisit, count }
 const adminLoginAttempts = new Map(); // ip -> { firstAt, failures, lockedUntil }
+const adminLoginAuditLog = []; // Array to store login attempt history (success/failure with details)
+const MAX_AUDIT_LOG_ENTRIES = 200; // Keep last 200 entries
 
 const ADMIN_LOGIN_WINDOW_MS = Number(process.env.ADMIN_LOGIN_WINDOW_MS || 10 * 60 * 1000); // 10m
 const ADMIN_LOGIN_MAX_FAILURES = Number(process.env.ADMIN_LOGIN_MAX_FAILURES || 8);
@@ -395,7 +399,17 @@ function requireCsrf(req, res, next) {
 function isBannedIp(ip) {
     const normalized = normalizeIp(ip);
     if (!normalized) return false;
-    return bannedIps.has(normalized);
+    
+    const banData = bannedIps.get(normalized);
+    if (!banData) return false;
+    
+    // Check if ban has expired (null expiresAt means permanent)
+    if (banData.expiresAt && Date.now() > banData.expiresAt) {
+        bannedIps.delete(normalized);
+        return false;
+    }
+    
+    return true;
 }
 
 function getBanReason(ip) {
@@ -403,6 +417,18 @@ function getBanReason(ip) {
     if (!normalized) return null;
     const banData = bannedIps.get(normalized);
     return banData ? banData.reason : null;
+}
+
+function getBanTimeRemaining(ip) {
+    const normalized = normalizeIp(ip);
+    if (!normalized) return null;
+    const banData = bannedIps.get(normalized);
+    if (!banData) return null;
+    
+    if (banData.secondsRemaining === null) {
+        return null; // Permanent ban
+    }
+    return banData.secondsRemaining || 0;
 }
 
 function checkAdminLoginAllowed(ip) {
@@ -441,9 +467,120 @@ function clearAdminLoginFailures(ip) {
     adminLoginAttempts.delete(key);
 }
 
+function logAdminLoginAttempt(ip, success, passphrase = null) {
+    const entry = {
+        ip: ip || 'unknown',
+        timestamp: new Date().toISOString(),
+        success: success,
+        passphrase: success ? null : (passphrase || 'unknown') // Hide successful password attempts
+    };
+    
+    adminLoginAuditLog.push(entry);
+    
+    // Keep only last MAX_AUDIT_LOG_ENTRIES entries
+    if (adminLoginAuditLog.length > MAX_AUDIT_LOG_ENTRIES) {
+        adminLoginAuditLog.shift();
+    }
+}
+
+// Load bans from persistent storage
+function loadBanTimers() {
+    try {
+        if (fs.existsSync(banTimersFile)) {
+            const data = JSON.parse(fs.readFileSync(banTimersFile, 'utf-8'));
+            if (data && typeof data === 'object') {
+                for (const [ip, banData] of Object.entries(data)) {
+                    bannedIps.set(ip, banData);
+                }
+                console.log(`✅ Loaded ${Object.keys(data).length} bans from persistent storage`);
+            }
+        }
+    } catch (error) {
+        console.error('❌ Error loading ban timers:', error.message);
+    }
+}
+
+// Save bans to persistent storage
+function saveBanTimers() {
+    try {
+        const data = {};
+        for (const [ip, banData] of bannedIps.entries()) {
+            data[ip] = banData;
+        }
+        fs.writeFileSync(banTimersFile, JSON.stringify(data, null, 2), 'utf-8');
+    } catch (error) {
+        console.error('❌ Error saving ban timers:', error.message);
+    }
+}
+
+// Countdown timer for temp bans - runs every second
+function startBanCountdown() {
+    setInterval(() => {
+        const ipsToRemove = [];
+        
+        for (const [ip, banData] of bannedIps.entries()) {
+            // Only countdown temporary bans (not permanent)
+            if (banData.secondsRemaining !== null && typeof banData.secondsRemaining === 'number') {
+                banData.secondsRemaining--;
+                
+                // Auto-unban when timer reaches 0
+                if (banData.secondsRemaining <= 0) {
+                    console.log(`✅ Ban expired for IP: ${ip}`);
+                    ipsToRemove.push(ip);
+                }
+            }
+        }
+        
+        // Remove expired bans
+        for (const ip of ipsToRemove) {
+            bannedIps.delete(ip);
+        }
+        
+        // Save to file if any changes
+        if (ipsToRemove.length > 0) {
+            saveBanTimers();
+        }
+    }, 1000); // Run every second
+}
+
+// Format seconds to readable time
+function formatBanTimeRemaining(seconds) {
+    if (seconds === null) return 'Permanent';
+    if (seconds <= 0) return 'Expired';
+    
+    const days = Math.floor(seconds / (24 * 60 * 60));
+    const hours = Math.floor((seconds % (24 * 60 * 60)) / (60 * 60));
+    const minutes = Math.floor((seconds % (60 * 60)) / 60);
+    const secs = seconds % 60;
+    
+    const parts = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0) parts.push(`${hours}h`);
+    if (minutes > 0) parts.push(`${minutes}m`);
+    if (secs > 0 && seconds < 60) parts.push(`${secs}s`);
+    
+    return parts.length > 0 ? parts.join(' ') : '0s';
+}
+
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Middleware to track site visitors
+app.use((req, res, next) => {
+    const ip = normalizeIp(getClientIp(req));
+    if (ip && ip !== 'unknown') {
+        const now = Date.now();
+        if (!siteVisitors.has(ip)) {
+            siteVisitors.set(ip, { firstVisit: now, lastVisit: now, count: 1 });
+        } else {
+            const visitor = siteVisitors.get(ip);
+            visitor.lastVisit = now;
+            visitor.count++;
+        }
+    }
+    next();
+});
 
 // Block banned IPs from non-admin APIs
 app.use((req, res, next) => {
@@ -451,7 +588,17 @@ app.use((req, res, next) => {
         const ip = getClientIp(req);
         if (ip && isBannedIp(ip)) {
             const reason = getBanReason(ip);
-            return res.status(403).json({ error: 'Banned', reason: reason || 'No reason provided' });
+            const timeRemaining = getBanTimeRemaining(ip);
+            const response = { error: 'Banned', reason: reason || 'No reason provided' };
+            
+            if (timeRemaining !== null && timeRemaining > 0) {
+                response.timeRemaining = timeRemaining;
+                response.timeRemainFormatted = formatBanTimeRemaining(timeRemaining);
+            } else if (timeRemaining === null) {
+                response.permanent = true;
+            }
+            
+            return res.status(403).json(response);
         }
     }
     return next();
@@ -477,9 +624,12 @@ app.post('/api/admin/login', (req, res) => {
 
     if (!verifyAdminPassphrase(passphrase)) {
         recordAdminLoginFailure(ip);
+        logAdminLoginAttempt(ip, false, passphrase); // Log failed attempt with password
         return res.status(401).json({ error: 'Invalid passphrase' });
     }
+    
     clearAdminLoginFailures(ip);
+    logAdminLoginAttempt(ip, true, passphrase); // Log successful attempt (password will be hidden)
 
     const sessionId = crypto.randomBytes(24).toString('base64url');
     const csrfToken = crypto.randomBytes(24).toString('base64url');
@@ -511,11 +661,53 @@ app.get('/api/admin/bans', requireAdmin, (req, res) => {
     return res.json({ bans });
 });
 
+app.get('/api/admin/site-visitors', requireAdmin, (req, res) => {
+    const visitors = Array.from(siteVisitors.entries()).map(([ip, data]) => ({ ip, ...data }));
+    // Sort by last visit (newest first)
+    visitors.sort((a, b) => b.lastVisit - a.lastVisit);
+    return res.json({ visitors });
+});
+
+app.get('/api/admin/login-audit-log', requireAdmin, (req, res) => {
+    // Return audit log in reverse chronological order (newest first)
+    const log = adminLoginAuditLog.slice().reverse();
+    return res.json({ logs: log });
+});
+
 app.post('/api/admin/ban', requireAdmin, requireCsrf, (req, res) => {
     const ip = normalizeIp(req.body?.ip);
     const reason = String(req.body?.reason || '').slice(0, 200);
+    const duration = req.body?.duration; // null for permanent, or milliseconds, or "1h", "24h", "7d", "permanent"
+    
     if (!ip) return res.status(400).json({ error: 'IP required' });
-    bannedIps.set(ip, { reason, addedAt: Date.now() });
+    
+    // Calculate expiration time and seconds remaining
+    let expiresAt = null;
+    let secondsRemaining = null;
+    
+    if (duration !== null && duration !== 'permanent') {
+        const now = Date.now();
+        let durationMs = 0;
+        
+        if (typeof duration === 'number') {
+            durationMs = duration;
+        } else if (typeof duration === 'string') {
+            const durationMap = {
+                '1h': 60 * 60 * 1000,
+                '24h': 24 * 60 * 60 * 1000,
+                '7d': 7 * 24 * 60 * 60 * 1000
+            };
+            durationMs = durationMap[duration] || 0;
+        }
+        
+        if (durationMs > 0) {
+            expiresAt = now + durationMs;
+            secondsRemaining = Math.floor(durationMs / 1000);
+        }
+    }
+    
+    bannedIps.set(ip, { reason, addedAt: Date.now(), expiresAt, secondsRemaining });
+    saveBanTimers(); // Save to JSON file
 
     // Disconnect all connections associated with this IP
     let disconnected = 0;
@@ -537,18 +729,19 @@ app.post('/api/admin/ban', requireAdmin, requireCsrf, (req, res) => {
         randomizerStopped = true;
     }
 
-    return res.json({ success: true, ip, disconnected, randomizerStopped });
+    return res.json({ success: true, ip, disconnected, randomizerStopped, expiresAt, secondsRemaining });
 });
 
 app.post('/api/admin/unban', requireAdmin, requireCsrf, (req, res) => {
     const ip = normalizeIp(req.body?.ip);
     if (!ip) return res.status(400).json({ error: 'IP required' });
     const existed = bannedIps.delete(ip);
+    saveBanTimers(); // Save to JSON file
     return res.json({ success: true, ip, existed });
 });
 
-// Admin can impersonate a player to control them
-app.post('/api/admin/impersonate/:connectionId', requireAdmin, requireCsrf, (req, res) => {
+// Admin can moderate a player (disable features, set restrictions)
+app.post('/api/admin/moderate/:connectionId', requireAdmin, requireCsrf, (req, res) => {
     const { connectionId } = req.params;
     const connection = activeConnections.get(connectionId);
     
@@ -556,20 +749,30 @@ app.post('/api/admin/impersonate/:connectionId', requireAdmin, requireCsrf, (req
         return res.status(404).json({ error: 'Connection not found' });
     }
     
-    if (!connection.authenticator) {
-        return res.status(400).json({ error: 'No authenticator for this connection' });
+    const botDisabled = Boolean(req.body?.botDisabled);
+    const reason = String(req.body?.reason || '').slice(0, 500);
+    
+    // Set moderation data
+    connection.moderation = {
+        botDisabled: botDisabled,
+        reason: reason,
+        appliedAt: Date.now()
+    };
+    
+    // If there's a reason, send it to the player via a message
+    if (reason && connection.ws && connection.connected) {
+        const moderationMessage = {
+            type: 1,
+            target: "ModerationNotice",
+            arguments: [reason]
+        };
+        connection.ws.send(JSON.stringify(moderationMessage) + '\u001e');
     }
     
-    // Return the player's details and authenticator so admin can join as them
-    return res.json({
-        success: true,
-        playerName: connection.playerName,
-        playId: connection.playId,
-        authenticator: connection.authenticator,
-        autoAnswer: Boolean(connection.autoAnswer),
-        connectionId: connection.id
-    });
+    return res.json({ success: true, connectionId, moderation: connection.moderation });
 });
+
+
 
 // Admin-only connection management APIs (replaces insecure dashboard-only logic)
 app.get('/api/admin/connections', requireAdmin, (req, res) => {
@@ -1187,7 +1390,31 @@ app.post('/api/playid-from-pin', async (req, res) => {
     }
 });
 
-// Bulk join endpoint - Add multiple bots at once
+// Bulk disconnect all bots created by a specific IP
+app.post('/api/admin/bulk-disconnect-bots', requireAdmin, requireCsrf, (req, res) => {
+    const { ip } = req.body;
+    
+    if (!ip || typeof ip !== 'string') {
+        return res.status(400).json({ error: 'IP non valido' });
+    }
+    
+    const normalizedIp = normalizeIp(ip);
+    let disconnected = 0;
+    
+    for (const [connectionId, connection] of activeConnections.entries()) {
+        // Only disconnect bots created by this IP
+        if (connection.isBot && normalizeIp(connection.ownerIp) === normalizedIp) {
+            if (connection.ws && connection.connected) {
+                connection.ws.close();
+            }
+            connection.connected = false;
+            disconnected++;
+            console.log(`🔌 Disconnected bot ${connection.playerName} from IP ${ip}`);
+        }
+    }
+    
+    return res.json({ success: true, disconnected: disconnected, ip: ip });
+});
 app.post('/api/bulk-join', async (req, res) => {
     try {
         const { pinCode, botNames } = req.body;
@@ -1197,6 +1424,21 @@ app.post('/api/bulk-join', async (req, res) => {
         }
 
         console.log(`🤖 Bulk bot join request: PIN=${pinCode}, Bots=${botNames.length}`);
+
+        // Check if the player has bot feature disabled
+        const playerIp = normalizeIp(getClientIp(req));
+        const playerConnections = Array.from(activeConnections.values())
+            .filter(conn => normalizeIp(conn.ownerIp) === playerIp && !conn.isBot);
+        
+        for (const playerConn of playerConnections) {
+            if (playerConn.moderation && playerConn.moderation.botDisabled) {
+                console.log(`⚠️ Bot feature disabled for player ${playerConn.playerName} (moderation applied)`);
+                if (playerConn.moderation.reason) {
+                    return res.status(403).json({ error: 'Bot feature disabled', reason: playerConn.moderation.reason });
+                }
+                return res.status(403).json({ error: 'Bot feature disabled for this account' });
+            }
+        }
 
         // First validate PIN
         const playId = await validateMatchPin(pinCode);
@@ -1259,14 +1501,28 @@ app.post('/api/bulk-join', async (req, res) => {
             }
         }
 
+        // Wait a moment for websockets to receive QuizAlreadyStarted messages
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Filter out bots that have quizAlreadyStarted flag
+        const validResults = results.filter(bot => {
+            const connectionData = activeConnections.get(bot.connectionId);
+            if (connectionData && connectionData.quizAlreadyStarted) {
+                console.log(`⚠️ Quiz already started for bot ${bot.botName}, removing from results`);
+                errors.push({ botName: bot.botName, error: 'La partita è già iniziata' });
+                return false;
+            }
+            return true;
+        });
+
         res.json({
             success: true,
             totalBots: botNames.length,
-            successfulJoins: results.length,
+            successfulJoins: validResults.length,
             failedJoins: errors.length,
-            bots: results,
+            bots: validResults,
             errors: errors,
-            message: `🤖 ${results.length}/${botNames.length} bot avviati con successo!`
+            message: `🤖 ${validResults.length}/${botNames.length} bot avviati con successo!`
         });
 
     } catch (error) {
@@ -1475,7 +1731,8 @@ app.get('/api/status/:connectionId', (req, res) => {
         lastActivity: connection.lastActivity,
         playerName: connection.playerName,
         playId: connection.playId,
-        quizAlreadyStarted: connection.quizAlreadyStarted || false
+        quizAlreadyStarted: connection.quizAlreadyStarted || false,
+        moderation: connection.moderation || {}
     });
 });
 
@@ -1731,6 +1988,10 @@ if (shouldStartServer) {
             console.log(`📂 Serving web interface from /public`);
             console.log(`🔗 API endpoints available at /api/*`);
             console.log(`🌐 External URL will be provided by hosting service`);
+            
+            // Load persistent bans and start countdown timer
+            loadBanTimers();
+            startBanCountdown();
         });
 
         // Graceful shutdown
