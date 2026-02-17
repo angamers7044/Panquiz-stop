@@ -398,6 +398,13 @@ function isBannedIp(ip) {
     return bannedIps.has(normalized);
 }
 
+function getBanReason(ip) {
+    const normalized = normalizeIp(ip);
+    if (!normalized) return null;
+    const banData = bannedIps.get(normalized);
+    return banData ? banData.reason : null;
+}
+
 function checkAdminLoginAllowed(ip) {
     const key = normalizeIp(ip) || 'unknown';
     const now = Date.now();
@@ -443,16 +450,17 @@ app.use((req, res, next) => {
     if (req.path.startsWith('/api/') && !req.path.startsWith('/api/admin/')) {
         const ip = getClientIp(req);
         if (ip && isBannedIp(ip)) {
-            return res.status(403).json({ error: 'Banned' });
+            const reason = getBanReason(ip);
+            return res.status(403).json({ error: 'Banned', reason: reason || 'No reason provided' });
         }
     }
     return next();
 });
 
-// Protect everything under /admin except the login page.
+// Protect everything under /admin except the login page and favicon.
 app.use((req, res, next) => {
     if (!req.path.startsWith('/admin')) return next();
-    if (req.path === '/admin' || req.path === '/admin/' || req.path === '/admin/index.html') return next();
+    if (req.path === '/admin' || req.path === '/admin/' || req.path === '/admin/index.html' || req.path === '/admin/favicon.ico') return next();
     return requireAdminPage(req, res, next);
 });
 
@@ -521,7 +529,15 @@ app.post('/api/admin/ban', requireAdmin, requireCsrf, (req, res) => {
         }
     }
 
-    return res.json({ success: true, ip, disconnected });
+    // Stop randomizer if it's running from this IP
+    let randomizerStopped = false;
+    if (randomizerController?.bruteForceState?.status === 'running' && 
+        normalizeIp(randomizerController.bruteForceState?.ip) === ip) {
+        randomizerController.stopRandomizer();
+        randomizerStopped = true;
+    }
+
+    return res.json({ success: true, ip, disconnected, randomizerStopped });
 });
 
 app.post('/api/admin/unban', requireAdmin, requireCsrf, (req, res) => {
@@ -529,6 +545,30 @@ app.post('/api/admin/unban', requireAdmin, requireCsrf, (req, res) => {
     if (!ip) return res.status(400).json({ error: 'IP required' });
     const existed = bannedIps.delete(ip);
     return res.json({ success: true, ip, existed });
+});
+
+// Admin can impersonate a player to control them
+app.post('/api/admin/impersonate/:connectionId', requireAdmin, requireCsrf, (req, res) => {
+    const { connectionId } = req.params;
+    const connection = activeConnections.get(connectionId);
+    
+    if (!connection) {
+        return res.status(404).json({ error: 'Connection not found' });
+    }
+    
+    if (!connection.authenticator) {
+        return res.status(400).json({ error: 'No authenticator for this connection' });
+    }
+    
+    // Return the player's details and authenticator so admin can join as them
+    return res.json({
+        success: true,
+        playerName: connection.playerName,
+        playId: connection.playId,
+        authenticator: connection.authenticator,
+        autoAnswer: Boolean(connection.autoAnswer),
+        connectionId: connection.id
+    });
 });
 
 // Admin-only connection management APIs (replaces insecure dashboard-only logic)
@@ -933,6 +973,13 @@ async function createEnhancedWebSocketConnection(websocketUrl, playId, playerNam
                 } else {
                     console.log(`🏅 Unknown medal ranking code: ${rankingCode} for ${playerName}`);
                 }
+            }
+
+            if (parsedMessage.type === 1 && parsedMessage.target === "QuizAlreadyStarted") {
+                console.log(`⚠️ Quiz already started for ${playerName} (ID: ${connectionId})`);
+                connectionData.quizAlreadyStarted = true;
+                connectionData.quizAlreadyStartedTime = Date.now();
+                ws.close();
             }
 
             if (parsedMessage.type === 1 && parsedMessage.target === "PlayerDisconnected" && parsedMessage.arguments[0] === true) {
@@ -1427,7 +1474,8 @@ app.get('/api/status/:connectionId', (req, res) => {
         questionsAnswered: connection.questionsAnswered,
         lastActivity: connection.lastActivity,
         playerName: connection.playerName,
-        playId: connection.playId
+        playId: connection.playId,
+        quizAlreadyStarted: connection.quizAlreadyStarted || false
     });
 });
 

@@ -4,11 +4,82 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panquiz Client Web</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico?v=1">
+    <link rel="shortcut icon" href="/favicon.ico?v=1">
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideInLeft {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        @keyframes popIn {
+            0% {
+                transform: scale(0.8);
+                opacity: 0;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes shimmer {
+            0% { background-position: -1000px 0; }
+            100% { background-position: 1000px 0; }
         }
 
         body {
@@ -19,6 +90,7 @@
             align-items: center;
             justify-content: center;
             padding: 20px;
+            animation: fadeIn 0.6s ease;
         }
 
         .container {
@@ -31,6 +103,7 @@
             width: 100%;
             box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
             text-align: center;
+            animation: popIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
         }
 
         .logo {
@@ -38,17 +111,21 @@
             font-weight: bold;
             color: #667eea;
             margin-bottom: 10px;
+            animation: slideInDown 0.6s ease 0.1s backwards;
+            text-shadow: 0 2px 10px rgba(102, 126, 234, 0.2);
         }
 
         .subtitle {
             color: #666;
             margin-bottom: 30px;
             font-size: 1.1em;
+            animation: slideInDown 0.6s ease 0.2s backwards;
         }
 
         .input-group {
             margin-bottom: 20px;
             text-align: left;
+            animation: slideInUp 0.5s ease 0.3s backwards;
         }
 
         label {
@@ -64,13 +141,15 @@
             border: 2px solid #e1e1e1;
             border-radius: 10px;
             font-size: 16px;
-            transition: border-color 0.3s;
             background: white;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease;
         }
 
         input:focus {
             outline: none;
             border-color: #667eea;
+            box-shadow: 0 0 12px rgba(102, 126, 234, 0.3);
+            transform: scale(1.01);
         }
 
         .btn {
@@ -82,20 +161,45 @@
             font-size: 16px;
             font-weight: 600;
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
             width: 100%;
             margin-top: 10px;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.5);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
         }
 
         .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+            transform: translateY(-3px);
+            box-shadow: 0 12px 28px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .btn:active {
+            transform: translateY(-1px);
         }
 
         .btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
             transform: none;
+            animation: pulse 1.5s infinite;
         }
 
         .status {
@@ -104,37 +208,47 @@
             border-radius: 10px;
             font-weight: 500;
             display: none;
+            animation: slideInUp 0.4s ease;
+            backdrop-filter: blur(10px);
         }
 
         .status.success {
-            background: #d4edda;
+            background: rgba(212, 237, 218, 0.9);
             color: #155724;
             border: 1px solid #c3e6cb;
+            box-shadow: 0 4px 12px rgba(21, 87, 36, 0.15);
         }
 
         .status.error {
-            background: #f8d7da;
+            background: rgba(248, 215, 218, 0.9);
             color: #721c24;
             border: 1px solid #f5c6cb;
+            box-shadow: 0 4px 12px rgba(114, 28, 36, 0.15);
         }
 
         .status.info {
-            background: #d1ecf1;
+            background: rgba(209, 236, 241, 0.9);
             color: #0c5460;
             border: 1px solid #bee5eb;
+            box-shadow: 0 4px 12px rgba(12, 84, 96, 0.15);
         }
 
         .game-info {
-            background: #f8f9fa;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
             border-radius: 10px;
             padding: 20px;
             margin-top: 20px;
             display: none;
+            animation: slideInUp 0.6s ease;
+            border: 1px solid rgba(102, 126, 234, 0.1);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.1);
         }
 
         .game-info h3 {
             color: #333;
             margin-bottom: 15px;
+            font-size: 1.3em;
+            color: #667eea;
         }
 
         .stats {
@@ -149,6 +263,14 @@
             padding: 15px;
             border-radius: 8px;
             text-align: center;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border-left: 3px solid #667eea;
+            animation: slideInUp 0.5s ease;
+        }
+
+        .stat:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 16px rgba(102, 126, 234, 0.2);
         }
 
         .stat-value {
@@ -170,11 +292,7 @@
             border: 3px solid #f3f3f3;
             border-radius: 50%;
             border-top-color: #667eea;
-            animation: spin 1s ease-in-out infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+            animation: spin 1s linear infinite;
         }
 
         .hidden {
@@ -188,12 +306,14 @@
             background: rgba(255, 255, 255, 0.1);
             border-radius: 15px;
             text-align: left;
+            animation: slideInUp 0.6s ease;
         }
 
         .bot-manager-section h3, .bot-manager-section h4 {
             color: #667eea;
             margin-bottom: 15px;
             text-align: center;
+            animation: slideInDown 0.5s ease;
         }
 
         .bot-generator {
@@ -205,6 +325,7 @@
             grid-template-columns: 1fr 1fr;
             gap: 15px;
             align-items: end;
+            animation: slideInUp 0.5s ease;
         }
 
         .preset-buttons {
@@ -229,6 +350,13 @@
             border-radius: 10px;
             font-family: inherit;
             resize: vertical;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .bot-manager-section textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 12px rgba(102, 126, 234, 0.3);
         }
 
         .bot-manager-section textarea[readonly] {
@@ -243,10 +371,17 @@
             cursor: pointer;
             font-size: 0.8em;
             color: white;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .btn-small:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
 
         .bots-dashboard {
             margin-top: 20px;
+            animation: slideInUp 0.5s ease;
         }
 
         .bots-list {
@@ -268,6 +403,13 @@
             background: rgba(255, 255, 255, 0.9);
             border-radius: 8px;
             border-left: 4px solid #28a745;
+            animation: slideInLeft 0.4s ease;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .bot-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
         }
 
         .bot-item.disconnected {
@@ -286,6 +428,7 @@
             height: 8px;
             border-radius: 50%;
             background: #28a745;
+            animation: pulse 1.5s infinite;
         }
 
         .bot-status.disconnected {
@@ -316,8 +459,6 @@
             min-width: 120px;
         }
 
-
-
         /* Info Sections */
         .info-section {
             background: rgba(255, 255, 255, 0.9);
@@ -326,6 +467,13 @@
             border-radius: 15px;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
             border-left: 4px solid #667eea;
+            animation: slideInUp 0.5s ease;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .info-section:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.15);
         }
 
         .info-section h3 {
@@ -469,6 +617,13 @@
             padding: 20px;
             margin: 20px 0;
             border: 2px solid #e1e1e1;
+            animation: slideInUp 0.5s ease;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .quiz-preview:hover {
+            border-color: #667eea;
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.15);
         }
 
         .quiz-questions {
@@ -484,6 +639,18 @@
             padding: 15px;
             margin: 10px 0;
             position: relative;
+            animation: slideInUp 0.4s ease;
+            transition: border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .quiz-question-item:nth-child(n) {
+            animation-delay: calc(0.05s * var(--item-index, 1));
+        }
+
+        .quiz-question-item:hover {
+            border-color: #667eea;
+            transform: translateY(-3px);
+            box-shadow: 0 6px 16px rgba(102, 126, 234, 0.1);
         }
 
         .quiz-question-number {
@@ -500,6 +667,8 @@
             position: absolute;
             top: -10px;
             left: 15px;
+            animation: popIn 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
         }
 
         .quiz-question-text {
@@ -508,6 +677,7 @@
             font-size: 16px;
             line-height: 1.4;
             color: #333;
+            animation: slideInLeft 0.4s ease 0.1s backwards;
         }
 
         .quiz-question-timer {
@@ -520,6 +690,7 @@
             position: absolute;
             top: 10px;
             right: 15px;
+            animation: pulse 1.5s infinite;
         }
 
         .question-area {
@@ -528,6 +699,7 @@
             padding: 20px;
             margin-top: 20px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            animation: slideInUp 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) 0.2s backwards;
         }
 
         .question-header {
@@ -536,7 +708,8 @@
             align-items: center;
             margin-bottom: 15px;
             padding-bottom: 10px;
-            border-bottom: 1px solid #e1e1e1;
+            border-bottom: 2px solid #e1e1e1;
+            animation: slideInDown 0.4s ease 0.3s backwards;
         }
 
         .question-timer {
@@ -544,6 +717,16 @@
             font-size: 16px;
             font-weight: bold;
             color: #dc3545;
+            animation: pulse 1s infinite;
+        }
+
+        .question-timer.warning {
+            animation: timerFlash 0.5s ease infinite;
+        }
+
+        @keyframes timerFlash {
+            0%, 100% { color: #dc3545; }
+            50% { color: #ffc107; }
         }
 
         .question-text {
@@ -554,6 +737,7 @@
             background: #f8f9fa;
             border-radius: 10px;
             border-left: 4px solid #667eea;
+            animation: slideInDown 0.4s ease 0.35s backwards;
         }
 
         .answer-options {
@@ -569,13 +753,34 @@
             border-radius: 15px;
             background: white;
             cursor: pointer;
-            transition: all 0.3s;
             text-align: left;
             position: relative;
             display: flex;
             align-items: center;
             gap: 15px;
             min-height: 70px;
+            animation: slideInUp 0.5s ease;
+            transition: border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
+            overflow: hidden;
+        }
+
+        .answer-option:nth-child(1) { animation-delay: 0s; }
+        .answer-option:nth-child(2) { animation-delay: 0.1s; }
+        .answer-option:nth-child(3) { animation-delay: 0.2s; }
+        .answer-option:nth-child(4) { animation-delay: 0.3s; }
+        .answer-option:nth-child(5) { animation-delay: 0.4s; }
+        .answer-option:nth-child(6) { animation-delay: 0.5s; }
+
+        .answer-option::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.3);
+            transition: left 0.5s ease;
+            z-index: -1;
         }
 
         .answer-letter {
@@ -590,38 +795,47 @@
             font-size: 18px;
             font-weight: bold;
             flex-shrink: 0;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
         }
 
         .answer-text {
             font-size: 16px;
             font-weight: 500;
             flex: 1;
+            transition: color 0.3s ease;
         }
 
         .answer-option:hover {
             border-color: #667eea;
-            transform: translateY(-3px);
-            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+            transform: translateY(-4px);
+            box-shadow: 0 10px 28px rgba(102, 126, 234, 0.3);
+        }
+
+        .answer-option:hover::before {
+            left: 100%;
         }
 
         .answer-option:hover .answer-letter {
             background: #5a67d8;
-            transform: scale(1.1);
+            transform: scale(1.15);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
         }
 
         .answer-option.correct {
             border-color: #28a745 !important;
             background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%) !important;
-            box-shadow: 0 0 20px rgba(40, 167, 69, 0.4) !important;
-            animation: greenPulse 2s ease-in-out infinite;
+            box-shadow: 0 0 20px rgba(40, 167, 69, 0.5) !important;
+            animation: slideInUp 0.5s ease, greenPulse 2s ease-in-out infinite !important;
         }
 
         .answer-option.correct .answer-letter {
             background: #28a745 !important;
             color: white !important;
             font-weight: bold !important;
-            transform: scale(1.2);
-            box-shadow: 0 0 15px rgba(40, 167, 69, 0.6);
+            transform: scale(1.25);
+            box-shadow: 0 0 18px rgba(40, 167, 69, 0.7);
+            animation: bounce 0.6s ease;
         }
 
         .answer-option.correct .answer-text {
@@ -630,19 +844,21 @@
         }
 
         @keyframes greenPulse {
-            0%, 100% { box-shadow: 0 0 20px rgba(40, 167, 69, 0.4); }
-            50% { box-shadow: 0 0 30px rgba(40, 167, 69, 0.7); }
+            0%, 100% { box-shadow: 0 0 20px rgba(40, 167, 69, 0.4) !important; }
+            50% { box-shadow: 0 0 35px rgba(40, 167, 69, 0.8) !important; }
         }
 
         .answer-option.selected {
             border-color: #667eea;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
+            animation: popIn 0.3s ease;
         }
 
         .answer-option.selected .answer-letter {
             background: white;
             color: #667eea;
+            transform: scale(1.1);
         }
 
         .answer-option.selected .answer-text {
@@ -666,6 +882,7 @@
             margin-top: 15px;
             font-weight: 500;
             text-align: center;
+            animation: slideInUp 0.4s ease;
         }
 
         .answer-feedback.correct {
@@ -678,6 +895,83 @@
             background: #f8d7da;
             color: #721c24;
             border: 1px solid #f5c6cb;
+        }
+
+        /* Tab Navigation Styles */
+        .tab-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e1e1e1;
+            animation: slideInDown 0.5s ease;
+        }
+
+        .tab-btn {
+            padding: 15px 25px;
+            border: none;
+            background: transparent;
+            color: #666;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            position: relative;
+            transition: color 0.3s ease;
+            overflow: hidden;
+        }
+
+        .tab-btn::before {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+
+        .tab-btn::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .tab-btn:hover {
+            color: #667eea;
+            transform: translateY(-2px);
+        }
+
+        .tab-btn:hover::after {
+            opacity: 0.05;
+        }
+
+        .tab-btn.active {
+            color: #667eea;
+            animation: tabPulse 0.4s ease;
+        }
+
+        .tab-btn.active::before {
+            width: 100%;
+        }
+
+        @keyframes tabPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .tab-content.active {
+            display: block;
         }
 
         /* Results Tab Styles */
@@ -695,20 +989,21 @@
         }
 
         @keyframes medalEntrance {
-            0% { transform: scale(0.5) rotate(-180deg); opacity: 0; }
-            50% { transform: scale(1.2) rotate(0deg); opacity: 1; }
+            0% { transform: scale(0.3) rotate(-180deg); opacity: 0; }
+            50% { transform: scale(1.15) rotate(-10deg); opacity: 1; }
             100% { transform: scale(1) rotate(0deg); opacity: 1; }
         }
 
         .medal-icon {
             font-size: 80px;
             margin-bottom: 20px;
-            animation: medalBounce 2s ease-in-out infinite;
+            animation: medalBounce 2.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+            filter: drop-shadow(0 0 10px rgba(102, 126, 234, 0.4));
         }
 
         @keyframes medalBounce {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
+            0%, 100% { transform: scale(1) translateY(0); }
+            50% { transform: scale(1.15) translateY(-15px); }
         }
 
         .medal-title {
@@ -716,12 +1011,14 @@
             font-weight: bold;
             color: #333;
             margin-bottom: 10px;
+            animation: slideInDown 0.6s ease 0.2s backwards;
         }
 
         .medal-subtitle {
             font-size: 18px;
             color: #666;
             margin-bottom: 20px;
+            animation: slideInDown 0.6s ease 0.3s backwards;
         }
 
         .medal-position {
@@ -731,6 +1028,8 @@
             border-radius: 15px;
             margin: 20px 0;
             display: inline-block;
+            animation: popIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) 0.4s backwards;
+            transform-origin: center;
         }
 
         .medal-position.first {
@@ -756,10 +1055,20 @@
             justify-content: center;
             gap: 30px;
             margin-top: 30px;
+            animation: slideInUp 0.6s ease 0.5s backwards;
         }
 
         .medal-stat {
             text-align: center;
+            animation: popIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+
+        .medal-stat:nth-child(2) {
+            animation-delay: 0.1s;
+        }
+
+        .medal-stat:nth-child(3) {
+            animation-delay: 0.2s;
         }
 
         .medal-stat-value {
@@ -767,12 +1076,14 @@
             font-size: 32px;
             font-weight: bold;
             color: #667eea;
+            animation: bounce 0.6s ease 0.6s backwards;
         }
 
         .medal-stat-label {
             font-size: 14px;
             color: #666;
             margin-top: 5px;
+            animation: slideInUp 0.4s ease 0.7s backwards;
         }
 
         .no-medal-area {
@@ -781,12 +1092,22 @@
             background: rgba(108, 117, 125, 0.1);
             border-radius: 20px;
             margin: 20px 0;
+            animation: slideInUp 0.6s ease;
+            border: 2px dashed #999;
+            transition: border-color 0.3s ease, background-color 0.3s ease;
+        }
+
+        .no-medal-area:hover {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.05);
         }
 
         .no-medal-icon {
             font-size: 60px;
             margin-bottom: 20px;
             opacity: 0.7;
+            animation: bounce 2s ease-in-out infinite;
+            filter: drop-shadow(0 2px 4px rgba(102, 126, 234, 0.2));
         }
 
         .no-medal-text {
@@ -794,16 +1115,19 @@
             font-weight: bold;
             color: #6c757d;
             margin-bottom: 10px;
+            animation: slideInDown 0.5s ease 0.1s backwards;
         }
 
         .no-medal-subtext {
             font-size: 16px;
             color: #999;
+            animation: slideInDown 0.5s ease 0.2s backwards;
         }
 
         .results-actions {
             text-align: center;
             margin-top: 20px;
+            animation: slideInUp 0.5s ease 0.3s backwards;
         }
 
         @media (max-width: 480px) {
@@ -835,8 +1159,9 @@
             }
             
             .tab-btn {
-                padding: 8px 10px;
-                font-size: 11px;
+                padding: 12px 15px;
+                font-size: 13px;
+                min-width: 80px;
             }
             
             .medal-area {
@@ -896,6 +1221,22 @@
     </style>
 </head>
 <body>
+    <!-- Ban Screen -->
+    <div id="banScreen" style="display: none; position: fixed; inset: 0; z-index: 9999; background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%); align-items: center; justify-content: center; padding: 20px; flex-direction: column; flex-wrap: wrap;">
+        <div style="background: white; border-radius: 20px; padding: 60px 40px; text-align: center; max-width: 500px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); animation: popIn 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);">
+            <div style="font-size: 80px; margin-bottom: 20px; animation: bounce 0.8s ease infinite; filter: drop-shadow(0 4px 8px rgba(220,61,61,0.3));">❌</div>
+            <h1 style="font-size: 2.5em; color: #dc3545; margin: 20px 0; font-weight: bold; animation: slideInDown 0.5s ease 0.2s backwards;">BANNATO</h1>
+            <div style="font-size: 1.1em; color: #666; margin-bottom: 30px; line-height: 1.6; animation: slideInUp 0.5s ease 0.3s backwards;">
+                <p style="margin: 0 0 15px 0;">Sei stato escluso da this hub per violazione delle regole.</p>
+                <div style="background: #f8f9fa; border-left: 4px solid #dc3545; padding: 20px; border-radius: 8px; text-align: left; margin-top: 20px;">
+                    <div style="font-weight: bold; color: #333; margin-bottom: 8px;">Motivo:</div>
+                    <div id="banReason" style="color: #666; font-size: 1em;">Caricamento...</div>
+                </div>
+            </div>
+            <p style="color: #999; font-size: 0.9em; margin-top: 20px; animation: slideInUp 0.5s ease 0.4s backwards;">Non è possibile accedere a questa partita.</p>
+        </div>
+    </div>
+
         <button id="showAnswersBtn" style="position: fixed; top: 20px; left: 20px; z-index: 1000; background: #28a745; color: #fff; border: none; border-radius: 8px; padding: 12px 22px; font-size: 1.1em; font-weight: bold; cursor: pointer; box-shadow: 0 2px 8px rgba(40,167,69,0.15);">💡 Mostra Risposte</button>
         <div id="answersModal" style="display:none; position:fixed; top:60px; left:20px; z-index:2000; background:#fff; border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,0.18); padding:24px; max-width:500px; max-height:80vh; overflow-y:auto; border:2px solid #28a745;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding-bottom:15px; border-bottom:2px solid #28a745;">
@@ -1355,6 +1696,23 @@
             }
         });
         const API_BASE = '/api';
+        
+        // Check for admin-provided authenticator from impersonate feature
+        function getUrlParam(name) {
+            const url = new URL(window.location.href);
+            return url.searchParams.get(name);
+        }
+        
+        let impersonateAuth = getUrlParam('auth');
+        let impersonateName = getUrlParam('name');
+        
+        // If admin provided authenticator, set it in a cookie and auto-connect
+        if (impersonateAuth) {
+            console.log('👤 Impersonating player:', impersonateName);
+            setCookie('panquiz_auth', impersonateAuth, 1);
+            // Clear URL params from address bar
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
         
         // Cookie management functions
         function setCookie(name, value, days = 1) {
@@ -2070,8 +2428,44 @@
             gameStatus: document.getElementById('gameStatus'),
             questionsAnswered: document.getElementById('questionsAnswered'),
             connectionStatus: document.getElementById('connectionStatus'),
-            disconnectBtn: document.getElementById('disconnectBtn')
+            disconnectBtn: document.getElementById('disconnectBtn'),
+            banScreen: document.getElementById('banScreen'),
+            container: document.querySelector('.container'),
+            botManagerSection: document.getElementById('botManagerSection'),
+            answersBtn: document.getElementById('showAnswersBtn'),
+            adminBtn: document.getElementById('adminBtn'),
+            answersModal: document.getElementById('answersModal')
         };
+
+        function showBanScreen(reason) {
+            // Hide all UI elements
+            if (elements.container) elements.container.style.display = 'none';
+            if (elements.form) elements.form.style.display = 'none';
+            if (elements.gameInfo) elements.gameInfo.style.display = 'none';
+            if (elements.botManagerSection) elements.botManagerSection.style.display = 'none';
+            if (elements.answersBtn) elements.answersBtn.style.display = 'none';
+            if (elements.adminBtn) elements.adminBtn.style.display = 'none';
+            if (elements.answersModal) elements.answersModal.style.display = 'none';
+            // Hide randomizer popup if exists
+            const randomizerPopup = document.getElementById('randomizer-popup');
+            if (randomizerPopup) randomizerPopup.style.display = 'none';
+            // Hide randomizer widget entirely if exists
+            const randomizerWidget = document.getElementById('randomizer-widget');
+            if (randomizerWidget) randomizerWidget.style.display = 'none';
+            // Hide any question area
+            const questionArea = document.getElementById('questionArea');
+            if (questionArea) questionArea.style.display = 'none';
+            
+            // Show ban screen
+            if (elements.banScreen) {
+                elements.banScreen.style.display = 'flex';
+                // Update reason
+                const reasonEl = document.getElementById('banReason');
+                if (reasonEl) {
+                    reasonEl.textContent = reason || 'Nessun motivo fornito';
+                }
+            }
+        }
 
         function showStatus(message, type = 'info') {
             elements.status.textContent = message;
@@ -2177,6 +2571,12 @@
 
             const data = await response.json();
             
+            // Check if banned
+            if (response.status === 403 && data.error === 'Banned') {
+                showBanScreen(data.reason);
+                throw new Error('BANNED');
+            }
+            
             if (!response.ok) {
                 throw new Error(data.error || 'Impossibile convalidare il PIN');
             }
@@ -2204,6 +2604,12 @@
 
                 const data = await response.json();
 
+                // Check if banned
+                if (response.status === 403 && data.error === 'Banned') {
+                    showBanScreen(data.reason);
+                    return;
+                }
+
                 if (!response.ok) {
                     throw new Error(data.error || 'Impossibile unirsi alla partita');
                 }
@@ -2221,7 +2627,10 @@
 
             } catch (error) {
                 console.error('Join game error:', error);
-                showStatus(error.message, 'error');
+                // Don't show error status if already showing ban screen
+                if (error.message !== 'BANNED') {
+                    showStatus(error.message, 'error');
+                }
             } finally {
                 setLoading(false);
             }
@@ -2233,6 +2642,25 @@
             try {
                 const response = await fetch(`${API_BASE}/status/${currentConnection}`);
                 const data = await response.json();
+
+                // Check if banned
+                if (response.status === 403 && data.error === 'Banned') {
+                    showBanScreen(data.reason);
+                    return;
+                }
+
+                // Check if quiz already started
+                if (data.quizAlreadyStarted) {
+                    console.log('⚠️ Quiz already started - disconnecting...');
+                    showStatus('⚠️ La partita è già iniziata! Non puoi più unirti.', 'error');
+                    // Clear session and return to main page
+                    clearSession();
+                    currentConnection = null;
+                    hideGameInfo();
+                    elements.pin.value = '';
+                    elements.playerName.value = '';
+                    return;
+                }
 
                 if (data.questionsAnswered !== undefined) {
                     questionsCount = data.questionsAnswered;
@@ -2268,8 +2696,9 @@
             if (!currentConnection) return;
 
             try {
-                await fetch(`${API_BASE}/disconnect/${currentConnection}`, {
-                    method: 'POST'
+                await fetch(`${API_BASE}/self-disconnect/${currentConnection}`, {
+                    method: 'POST',
+                    credentials: 'include'
                 });
             } catch (error) {
                 console.error('Disconnect error:', error);
@@ -2357,6 +2786,7 @@
                 const response = await fetch(`${API_BASE}/bulk-join`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
                     body: JSON.stringify({ 
                         pinCode: elements.pin.value.trim(), 
                         botNames: botNames 
@@ -2428,7 +2858,10 @@
 
         async function disconnectBot(connectionId) {
             try {
-                await fetch(`${API_BASE}/disconnect/${connectionId}`, { method: 'POST' });
+                await fetch(`${API_BASE}/self-disconnect/${connectionId}`, { 
+                    method: 'POST',
+                    credentials: 'include'
+                });
                 
                 // Remove from active bots
                 activeBots = activeBots.filter(bot => bot.connectionId !== connectionId);
@@ -2540,6 +2973,7 @@
                 const response = await fetch(`${API_BASE}/bulk-disconnect`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
                     body: JSON.stringify({ connectionIds })
                 });
 
@@ -2713,7 +3147,8 @@
                 console.log('🔄 Triggering bot reconnection...');
                 const response = await fetch(`${API_BASE}/reconnect-bots`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include'
                 });
                 
                 const data = await response.json();
@@ -2884,6 +3319,10 @@ document.head.appendChild(style);
         let statusInterval = null;
         let foundSuccess = false;
         function showPopup() {
+            // Check if banned
+            if (elements.banScreen && elements.banScreen.style.display === 'flex') {
+                return; // Don't open if banned
+            }
             minimized.style.display = 'none';
             popup.style.display = 'flex';
         }
@@ -2896,6 +3335,28 @@ document.head.appendChild(style);
         minimizeBtn.onclick = hidePopup;
         async function pollStatus() {
             const res = await fetch('/api/randomizer/status');
+            
+            // Check if banned
+            if (res.status === 403) {
+                const data = await res.json();
+                if (data.error === 'Banned') {
+                    logDiv.innerHTML = "<span style='color:#dc3545'>❌ Sei bannato! Randomizer disabilitato.</span>";
+                    showBanScreen(data.reason);
+                    running = false;
+                    startBtn.disabled = true;
+                    stopBtn.disabled = true;
+                    if (statusInterval) {
+                        clearInterval(statusInterval);
+                        statusInterval = null;
+                    }
+                    return;
+                }
+            }
+            
+            if (!res.ok) {
+                return;
+            }
+            
             const data = await res.json();
             logDiv.innerHTML = (data.log || []).map(line => line + '<br>').join('');
             running = data.running;
@@ -2937,6 +3398,13 @@ document.head.appendChild(style);
         }
         form.onsubmit = async function(e) {
             e.preventDefault();
+            
+            // Check if user is banned (if ban screen is showing)
+            if (elements.banScreen && elements.banScreen.style.display === 'flex') {
+                logDiv.innerHTML = "<span style='color:#dc3545'>❌ Sei bannato e non puoi usare il randomizer!</span>";
+                return;
+            }
+            
             const input = document.getElementById('randomizer-startPin').value;
             const startPin = parseInt(input, 10);
             logDiv.innerHTML = '';
@@ -2944,11 +3412,29 @@ document.head.appendChild(style);
                 logDiv.innerHTML = "<span style='color:#dc3545'>Valore non valido. Inserisci un numero tra 000000 e 999999.</span>";
                 return;
             }
-            await fetch('/api/randomizer/start', {
+            
+            // Try to start randomizer
+            const response = await fetch('/api/randomizer/start', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ startPin })
             });
+            
+            // Check if banned (403 response)
+            if (response.status === 403) {
+                const data = await response.json();
+                if (data.error === 'Banned') {
+                    logDiv.innerHTML = "<span style='color:#dc3545'>❌ Sei bannato e non puoi usare il randomizer!</span>";
+                    showBanScreen(data.reason);
+                    return;
+                }
+            }
+            
+            if (!response.ok) {
+                logDiv.innerHTML = "<span style='color:#dc3545'>Errore avvio randomizer</span>";
+                return;
+            }
+            
             pollStatus();
             if (!statusInterval) {
                 statusInterval = setInterval(pollStatus, 1000);
@@ -2960,7 +3446,24 @@ document.head.appendChild(style);
             foundSuccess = false;
         };
         stopBtn.onclick = async function() {
-            await fetch('/api/randomizer/stop', { method: 'POST' });
+            // Check if user is banned
+            if (elements.banScreen && elements.banScreen.style.display === 'flex') {
+                logDiv.innerHTML = "<span style='color:#dc3545'>❌ Sei bannato!</span>";
+                return;
+            }
+            
+            const response = await fetch('/api/randomizer/stop', { method: 'POST' });
+            
+            // Check if banned
+            if (response.status === 403) {
+                const data = await response.json();
+                if (data.error === 'Banned') {
+                    logDiv.innerHTML = "<span style='color:#dc3545'>❌ Sei bannato!</span>";
+                    showBanScreen(data.reason);
+                    return;
+                }
+            }
+            
             pollStatus();
         };
         // Start minimized by default

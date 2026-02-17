@@ -4,7 +4,117 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard</title>
+    <link rel="icon" type="image/x-icon" href="/admin/favicon.ico?v=1">
+    <link rel="shortcut icon" href="/admin/favicon.ico?v=1">
     <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body, .admin-btn, .admin-section, input, .modal {
+            transition: background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideInLeft {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        @keyframes shimmer {
+            0% { background-position: -1000px 0; }
+            100% { background-position: 1000px 0; }
+        }
+
+        @keyframes popIn {
+            0% {
+                transform: scale(0.8);
+                opacity: 0;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        @keyframes toastSlideIn {
+            from {
+                opacity: 0;
+                transform: translateX(400px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes toastSlideOut {
+            from {
+                opacity: 1;
+                transform: translateX(0);
+            }
+            to {
+                opacity: 0;
+                transform: translateX(400px);
+            }
+        }
+
+        @keyframes rowHighlight {
+            from {
+                background-color: rgba(255, 82, 82, 0.2);
+            }
+            to {
+                background-color: transparent;
+            }
+        }
+
         body {
             background: linear-gradient(135deg, #b71c1c 0%, #212121 100%);
             color: #fff;
@@ -14,7 +124,9 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            animation: fadeIn 0.6s ease;
         }
+
         .admin-container {
             background: rgba(30, 30, 30, 0.98);
             border-radius: 18px;
@@ -24,40 +136,72 @@
             max-width: 600px;
             width: 100%;
             text-align: center;
+            animation: slideInDown 0.7s ease;
+            backdrop-filter: blur(10px);
         }
+
         .admin-title {
             font-size: 2em;
             font-weight: bold;
             margin-bottom: 18px;
             color: #ff5252;
+            text-shadow: 0 2px 10px rgba(255, 82, 82, 0.3);
+            animation: slideInDown 0.8s ease 0.1s backwards;
         }
+
         .admin-section {
             margin: 24px 0 0 0;
             background: #1a1a1a;
             border-radius: 12px;
             padding: 18px 16px;
             box-shadow: 0 2px 8px rgba(183,28,28,0.10);
+            animation: slideInUp 0.6s ease;
+            border: 1px solid rgba(255, 82, 82, 0.1);
         }
+
+        .admin-section:hover {
+            box-shadow: 0 8px 24px rgba(183,28,28,0.2);
+            border-color: rgba(255, 82, 82, 0.3);
+        }
+
         .admin-table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 10px;
         }
+
         .admin-table th, .admin-table td {
             border: 1px solid #ff5252;
             padding: 8px 10px;
             text-align: left;
         }
+
         .admin-table th {
             background: #b71c1c;
             color: #fff;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
+
+        .admin-table tr {
+            animation: rowHighlight 0.8s ease;
+        }
+
+        .admin-table tr:hover {
+            background: rgba(255, 82, 82, 0.1) !important;
+            transform: scale(1.01);
+            box-shadow: inset 0 0 10px rgba(255, 82, 82, 0.1);
+        }
+
         .admin-table tr:nth-child(even) {
             background: #232323;
         }
+
         .admin-table tr:nth-child(odd) {
             background: #181818;
         }
+
         .admin-btn {
             background: linear-gradient(135deg, #ff5252 0%, #b71c1c 100%);
             color: #fff;
@@ -68,22 +212,63 @@
             font-weight: bold;
             cursor: pointer;
             margin: 0 4px;
+            position: relative;
+            overflow: hidden;
+            touch-action: manipulation;
         }
+
+        .admin-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.5);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .admin-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(183, 28, 28, 0.4);
+        }
+
+        .admin-btn:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .admin-btn:active {
+            transform: translateY(0);
+        }
+
         .admin-btn.danger {
             background: linear-gradient(135deg, #b71c1c 0%, #ff5252 100%);
         }
+
         .admin-btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
+            animation: pulse 1.5s infinite;
         }
+
         .admin-btn.secondary {
             background: linear-gradient(135deg, #424242 0%, #212121 100%);
         }
+
+        .admin-btn.secondary:hover {
+            background: linear-gradient(135deg, #555 0%, #333 100%);
+        }
+
         .admin-status {
             font-size: 1.1em;
             margin-bottom: 10px;
             color: #ffbaba;
+            animation: slideInLeft 0.5s ease;
         }
+
         .modal-backdrop {
             position: fixed;
             inset: 0;
@@ -92,7 +277,15 @@
             align-items: center;
             justify-content: center;
             padding: 18px;
+            animation: fadeIn 0.3s ease;
+            backdrop-filter: blur(5px);
         }
+
+        .modal-backdrop.show {
+            display: flex !important;
+            animation: fadeIn 0.3s ease;
+        }
+
         .modal {
             width: 100%;
             max-width: 700px;
@@ -102,11 +295,17 @@
             box-shadow: 0 8px 32px rgba(0,0,0,0.45);
             padding: 16px;
             text-align: left;
+            animation: popIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
         }
+
         .modal h3 {
             margin: 0 0 10px 0;
             color: #ff5252;
+            font-size: 1.5em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
+
         .modal pre {
             white-space: pre-wrap;
             word-break: break-word;
@@ -115,6 +314,127 @@
             border-radius: 10px;
             padding: 12px;
             border: 1px solid #333;
+            font-size: 0.9em;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        /* Loading spinner */
+        .spinner {
+            border: 3px solid rgba(255, 82, 82, 0.3);
+            border-top: 3px solid #ff5252;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin: 0 8px;
+        }
+
+        /* Toast notifications */
+        .toast-container {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            z-index: 10000;
+            max-width: 400px;
+        }
+
+        .toast {
+            background: rgba(30, 30, 30, 0.95);
+            border: 1px solid #ff5252;
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            animation: toastSlideIn 0.4s ease;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            backdrop-filter: blur(10px);
+        }
+
+        .toast.success {
+            border-color: #4caf50;
+            color: #4caf50;
+        }
+
+        .toast.error {
+            border-color: #ff5252;
+            color: #ff5252;
+        }
+
+        .toast.info {
+            border-color: #2196f3;
+            color: #2196f3;
+        }
+
+        .toast.show-exit {
+            animation: toastSlideOut 0.4s ease;
+        }
+
+        /* Filter buttons */
+        .filter-btn {
+            padding: 8px 16px;
+            margin: 4px;
+            background: rgba(255, 82, 82, 0.2);
+            border: 2px solid rgba(255, 82, 82, 0.3);
+            color: #fff;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .filter-btn.active {
+            background: #ff5252;
+            border-color: #ff5252;
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(255, 82, 82, 0.4);
+        }
+
+        .filter-btn:hover {
+            border-color: #ff5252;
+            background: rgba(255, 82, 82, 0.3);
+        }
+
+        /* Input styling */
+        input[type="text"],
+        input[type="number"] {
+            background: #0f0f0f !important;
+            border: 1px solid #ff5252 !important;
+            color: #fff !important;
+            border-radius: 8px !important;
+            padding: 10px 12px !important;
+            font-size: 1em !important;
+            transition: all 0.3s ease !important;
+        }
+
+        input[type="text"]:focus,
+        input[type="number"]:focus {
+            outline: none !important;
+            border-color: #ff5252 !important;
+            box-shadow: 0 0 12px rgba(255, 82, 82, 0.3) !important;
+            transform: scale(1.01) !important;
+        }
+
+        /* Smooth scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 82, 82, 0.1);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, #ff5252 0%, #b71c1c 100%);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, #b71c1c 0%, #ff5252 100%);
         }
     </style>
 </head>
@@ -156,9 +476,86 @@
                 <button class="admin-btn secondary" id="closeDetails">Close</button>
             </div>
             <pre id="detailsPre">Loading...</pre>
+            <button class="admin-btn" id="impersonateBtn" style="margin-top:12px;">👤 Impersonate Player</button>
         </div>
     </div>
+
+    <div class="modal-backdrop" id="banModalBackdrop">
+        <div class="modal">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                <h3 style="flex:1;">Ban IP Address</h3>
+                <button class="admin-btn secondary" id="closeBanModal">Close</button>
+            </div>
+            <p style="margin:10px 0;">IP: <strong id="banIpDisplay"></strong></p>
+            <div id="randomizerWarning" style="background:#8b0000; padding:10px; border-radius:8px; margin-bottom:10px; display:none;">
+                ⚠️ <strong>Randomizer Active</strong> from this IP. Will be stopped when banned.
+            </div>
+            <label style="display:block; margin-bottom:10px;">
+                Ban Reason (optional):
+                <input type="text" id="banReasonInput" placeholder="e.g., Cheating, Spam, etc." style="width:100%; padding:8px; margin-top:5px; border:1px solid #ff5252; background:#0f0f0f; color:#fff; border-radius:4px;">
+            </label>
+            <button class="admin-btn danger" id="confirmBanBtn">Confirm Ban</button>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" id="impersonateModalBackdrop">
+        <div class="modal">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                <h3 style="flex:1;">Impersonate Player</h3>
+                <button class="admin-btn secondary" id="closeImpersonateModal">Close</button>
+            </div>
+            <p id="impersonateInfo" style="margin:10px 0;"></p>
+            <div style="background:#0f0f0f; border:1px solid #333; border-radius:8px; padding:10px; margin:10px 0; max-height:200px; overflow-y:auto;">
+                <p style="margin:0 0 5px 0; font-size:0.9em; color:#aaa;">Authenticator:</p>
+                <p id="impersonateAuth" style="margin:0; word-break:break-all; font-family:monospace; font-size:0.85em;"></p>
+            </div>
+            <button class="admin-btn" id="copyAuthBtn">📋 Copy Authenticator</button>
+            <button class="admin-btn secondary" id="controlPlayerBtn">🎮 Control This Player</button>
+        </div>
+    </div>
+
+    <!-- Toast Notifications Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
     <script>
+        // --- Toast Notification System ---
+        function showToast(message, type = 'info', duration = 4000) {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            
+            const icons = {
+                success: '✅',
+                error: '❌',
+                info: 'ℹ️',
+                warning: '⚠️'
+            };
+            
+            toast.innerHTML = `
+                <span>${icons[type] || icons.info}</span>
+                <span>${message}</span>
+            `;
+            
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.add('show-exit');
+                setTimeout(() => toast.remove(), 400);
+            }, duration);
+        }
+
+        // --- Loading State Management ---
+        function setLoading(show, element = null) {
+            if (!element) element = document.body;
+            if (show) {
+                element.style.opacity = '0.6';
+                element.style.pointerEvents = 'none';
+            } else {
+                element.style.opacity = '1';
+                element.style.pointerEvents = 'auto';
+            }
+        }
+
         // --- Update checker UI logic ---
         async function checkUpdateStatus() {
             try {
@@ -177,9 +574,9 @@
             if (!confirm('A new version is available. Update now? The server will restart.')) return;
             const res = await fetch('/api/updater/update', { method: 'POST' });
             if (res.ok) {
-                alert('Update started! The server will restart if successful.');
+                showToast('Update started! The server will restart.', 'info');
             } else {
-                alert('Update failed.');
+                showToast('Update failed.', 'error');
             }
         };
     let csrfToken = sessionStorage.getItem('adminCsrf') || '';
@@ -222,6 +619,7 @@
     async function fetchUsers() {
         if (!(await ensureAuth())) return;
         try {
+            setLoading(true);
             const res = await fetch('/api/admin/connections', { credentials: 'same-origin' });
             if (res.status === 401) {
                 window.location.href = '/admin';
@@ -279,6 +677,8 @@
             document.getElementById('adminStatus').textContent = `Utenti connessi: ${connections.length} (filter: ${currentFilter})`;
         } catch (e) {
             document.getElementById('adminStatus').textContent = 'Errore caricamento utenti: ' + (e.message || e);
+        } finally {
+            setLoading(false);
         }
     }
 
@@ -294,9 +694,10 @@
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok || !data.success) throw new Error(data.error || 'Impossibile aggiornare auto answer');
+            showToast('Auto answer aggiornato!', 'success');
             fetchUsers();
         } catch (e) {
-            alert('Errore: ' + (e.message || e));
+            showToast('Errore: ' + (e.message || e), 'error');
         }
     }
 
@@ -312,9 +713,10 @@
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok || !data.success) throw new Error(data.error || 'Impossibile disconnettere');
+            showToast('Utente disconnesso!', 'success');
             fetchUsers();
         } catch (e) {
-            alert('Errore: ' + (e.message || e));
+            showToast('Errore: ' + (e.message || e), 'error');
         }
     }
 
@@ -354,24 +756,19 @@
                 lines.push(`Medal: ${c.medalData.name}`);
             }
             if (pre) pre.textContent = lines.join('\n');
+            
+            // Store ID for impersonate button
+            window.currentDetailsId = id;
         } catch (e) {
             const pre = document.getElementById('detailsPre');
             if (pre) pre.textContent = 'Errore: ' + (e.message || e);
         }
     }
 
-    const closeBtn = document.getElementById('closeDetails');
-    const backdrop = document.getElementById('detailsBackdrop');
-    if (closeBtn && backdrop) {
-        closeBtn.addEventListener('click', () => { backdrop.style.display = 'none'; });
-        backdrop.addEventListener('click', (e) => {
-            if (e.target === backdrop) backdrop.style.display = 'none';
-        });
-    }
-
     async function fetchBans() {
         if (!(await ensureAuth())) return;
         try {
+            setLoading(true);
             const res = await fetch('/api/admin/bans', { credentials: 'same-origin' });
             if (res.status === 401) {
                 window.location.href = '/admin';
@@ -402,13 +799,45 @@
             document.getElementById('banStatus').textContent = 'IP bannati: ' + bans.length;
         } catch (e) {
             document.getElementById('banStatus').textContent = 'Errore caricamento ban: ' + (e.message || e);
+        } finally {
+            setLoading(false);
         }
     }
 
     async function banIp(ip) {
         if (!(await ensureAuth())) return;
         if (!ip) return;
-        const reason = prompt('Motivo ban (opzionale):', '') || '';
+        
+        // Show modal
+        document.getElementById('banIpDisplay').textContent = ip;
+        document.getElementById('banReasonInput').value = '';
+        
+        // Check randomizer status
+        try {
+            const res = await fetch('/api/randomizer/status');
+            const data = await res.json();
+            if (data.status === 'running' && data.ip === ip) {
+                document.getElementById('randomizerWarning').style.display = 'block';
+            } else {
+                document.getElementById('randomizerWarning').style.display = 'none';
+            }
+        } catch {
+            document.getElementById('randomizerWarning').style.display = 'none';
+        }
+        
+        document.getElementById('banModalBackdrop').style.display = 'flex';
+        
+        // Store IP for confirmation handler
+        window.pendingBanIp = ip;
+    }
+
+    async function confirmBan() {
+        if (!(await ensureAuth())) return;
+        const ip = window.pendingBanIp;
+        const reason = document.getElementById('banReasonInput').value.trim();
+        
+        if (!ip) return;
+        
         try {
             const res = await fetch('/api/admin/ban', {
                 method: 'POST',
@@ -418,10 +847,17 @@
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok || !data.success) throw new Error(data.error || 'Ban fallito');
+            
+            document.getElementById('banModalBackdrop').style.display = 'none';
+            if (data.randomizerStopped) {
+                showToast('IP bannato! Randomizer stoppato.' + (data.disconnected ? ` (${data.disconnected} disconnessi)` : ''), 'success');
+            } else {
+                showToast('IP bannato!' + (data.disconnected ? ` (${data.disconnected} disconnessi)` : ''), 'success');
+            }
             fetchUsers();
             fetchBans();
         } catch (e) {
-            alert('Errore: ' + (e.message || e));
+            showToast('Errore: ' + (e.message || e), 'error');
         }
     }
 
@@ -437,11 +873,115 @@
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok || !data.success) throw new Error(data.error || 'Unban fallito');
+            showToast('IP sbannato!', 'success');
             fetchUsers();
             fetchBans();
         } catch (e) {
-            alert('Errore: ' + (e.message || e));
+            showToast('Errore: ' + (e.message || e), 'error');
         }
+    }
+
+    async function impersonatePlayer(connectionId) {
+        if (!(await ensureAuth())) return;
+        if (!connectionId) return;
+        
+        try {
+            const res = await fetch(`/api/admin/impersonate/${encodeURIComponent(connectionId)}`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: csrfHeaders(),
+                body: JSON.stringify({})
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.success) throw new Error(data.error || 'Impossibile impersonare');
+            
+            // Show impersonate modal with player details
+            document.getElementById('impersonateInfo').innerHTML = `
+                <strong>${data.playerName}</strong> in game <strong>${data.playId}</strong>
+                <br>AutoAnswer: ${data.autoAnswer ? '✅ ON' : '❌ OFF'}
+            `;
+            document.getElementById('impersonateAuth').textContent = data.authenticator;
+            
+            // Store for control action
+            window.pendingImpersonate = {
+                authenticator: data.authenticator,
+                playerName: data.playerName,
+                playId: data.playId
+            };
+            
+            document.getElementById('impersonateModalBackdrop').style.display = 'flex';
+        } catch (e) {
+            showToast('Errore: ' + (e.message || e), 'error');
+        }
+    }
+
+    // Modal event listeners
+    const detailsBackdrop = document.getElementById('detailsBackdrop');
+    const closeDetailsBtn = document.getElementById('closeDetails');
+    const impersonateBtn = document.getElementById('impersonateBtn');
+    
+    if (closeDetailsBtn && detailsBackdrop) {
+        closeDetailsBtn.addEventListener('click', () => { detailsBackdrop.style.display = 'none'; });
+        detailsBackdrop.addEventListener('click', (e) => {
+            if (e.target === detailsBackdrop) detailsBackdrop.style.display = 'none';
+        });
+    }
+    
+    if (impersonateBtn) {
+        impersonateBtn.addEventListener('click', () => {
+            const connectionId = window.currentDetailsId;
+            if (connectionId) impersonatePlayer(connectionId);
+        });
+    }
+    
+    // Ban modal listeners
+    const banModalBackdrop = document.getElementById('banModalBackdrop');
+    const closeBanModalBtn = document.getElementById('closeBanModal');
+    const confirmBanBtn = document.getElementById('confirmBanBtn');
+    
+    if (closeBanModalBtn && banModalBackdrop) {
+        closeBanModalBtn.addEventListener('click', () => { banModalBackdrop.style.display = 'none'; });
+        banModalBackdrop.addEventListener('click', (e) => {
+            if (e.target === banModalBackdrop) banModalBackdrop.style.display = 'none';
+        });
+    }
+    
+    if (confirmBanBtn) {
+        confirmBanBtn.addEventListener('click', confirmBan);
+    }
+    
+    // Impersonate modal listeners
+    const impersonateModalBackdrop = document.getElementById('impersonateModalBackdrop');
+    const closeImpersonateModalBtn = document.getElementById('closeImpersonateModal');
+    const copyAuthBtn = document.getElementById('copyAuthBtn');
+    const controlPlayerBtn = document.getElementById('controlPlayerBtn');
+    
+    if (closeImpersonateModalBtn && impersonateModalBackdrop) {
+        closeImpersonateModalBtn.addEventListener('click', () => { impersonateModalBackdrop.style.display = 'none'; });
+        impersonateModalBackdrop.addEventListener('click', (e) => {
+            if (e.target === impersonateModalBackdrop) impersonateModalBackdrop.style.display = 'none';
+        });
+    }
+    
+    if (copyAuthBtn) {
+        copyAuthBtn.addEventListener('click', () => {
+            const auth = document.getElementById('impersonateAuth').textContent;
+            navigator.clipboard.writeText(auth).then(() => {
+                copyAuthBtn.textContent = '✅ Copied!';
+                showToast('Authenticator copied!', 'success');
+                setTimeout(() => { copyAuthBtn.textContent = '📋 Copy Authenticator'; }, 2000);
+            }).catch(() => showToast('Copy failed', 'error'));
+        });
+    }
+    
+    if (controlPlayerBtn) {
+        controlPlayerBtn.addEventListener('click', () => {
+            const imp = window.pendingImpersonate;
+            if (!imp) return;
+            // Redirect to client page with authenticator as parameter
+            window.open(`/?auth=${encodeURIComponent(imp.authenticator)}&name=${encodeURIComponent(imp.playerName)}`, '_blank');
+            impersonateModalBackdrop.style.display = 'none';
+        });
     }
 
     fetchUsers();
